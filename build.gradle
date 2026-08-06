@@ -9,7 +9,12 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        // Java 21 LTS. Spring Boot 3.3 이 지원하는 범위는 17~22 입니다.
+        //
+        // toolchain 을 쓰는 이유:
+        //   개발자 PC 에 깔린 JDK 버전과 무관하게 Gradle 이 21 을 찾아 씁니다.
+        //   없으면 자동으로 받아옵니다. "내 컴퓨터에서는 되는데" 를 줄여줍니다.
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 

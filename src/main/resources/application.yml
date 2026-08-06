@@ -4,6 +4,21 @@ spring:
   profiles:
     default: local
 
+  # ⚠ 가상 스레드(Java 21)를 일부러 켜지 않았습니다.
+  #
+  #   threads.virtual.enabled: true 로 두면 톰캣 요청 처리가 가상 스레드로 바뀝니다.
+  #   그런데 Java 21 에서는 synchronized 블록 안에서 블로킹하면
+  #   캐리어 스레드가 고정(pinning)됩니다. JDBC 드라이버와 HikariCP 내부에
+  #   synchronized 구간이 있어서, 예약처럼 DB 락을 오래 잡는 요청이 많으면
+  #   오히려 캐리어 풀이 말라 처리량이 떨어질 수 있습니다.
+  #   (JDK 24 의 JEP 491 에서 해소되었습니다)
+  #
+  #   촬영 예약은 하루 수 건 규모라 가상 스레드로 얻을 이득이 사실상 없습니다.
+  #   측정 없이 켜는 건 위험만 늘리는 선택이라 두고 봅니다.
+  # threads:
+  #   virtual:
+  #     enabled: true
+
   jpa:
     open-in-view: false
     properties:
