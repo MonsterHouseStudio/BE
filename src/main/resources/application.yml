@@ -1,0 +1,180 @@
+spring:
+  application:
+    name: monsterhouse
+  profiles:
+    default: local
+
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+        jdbc:
+          time_zone: Asia/Seoul
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  # --- i18n: 서버가 만드는 문자열 (검증 에러 · 메일 본문) ---
+  messages:
+    basename: messages/messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+    always-use-message-format: false
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 100MB
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+      mail.mime.charset: UTF-8
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  health:
+    # 메일은 실패해도 예약·문의를 막지 않는 비동기 부가 채널입니다(§5.3).
+    # 그런데 기본 헬스 인디케이터는 SMTP 접속을 시도하고, 실패하면 앱 전체를 DOWN 으로
+    # 만들어 로드밸런서가 인스턴스를 빼거나 오케스트레이터가 재시작시킵니다.
+    # 서비스 가용성과 무관하므로 헬스 판정에서 제외합니다.
+    mail:
+      enabled: false
+
+# ============================================
+#  애플리케이션 커스텀 설정
+# ============================================
+app:
+  # sitemap.xml / hreflang 에 쓰이는 사이트 절대 주소 (기획서 §2.1, §10 Phase5)
+  # 검색엔진에 내려보내는 값이라 반드시 실제 도메인이어야 합니다.
+  site:
+    base-url: ${SITE_BASE_URL:http://localhost:5173}
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+  # --- 예약 정책 (§12 클라이언트 확정 후 조정) ---
+  booking:
+    # 슬롯 시작 시각 그리드 (분). 90분 상품이어도 30분 간격으로 시작 시각 노출
+    slot-step-min: 30
+    # 촬영 종료 후 정리/이동 버퍼 (분)
+    buffer-min: 15
+    # 오늘로부터 몇 일 뒤까지 예약 가능한가
+    max-advance-days: 90
+    # 최소 몇 시간 전까지 신청 가능한가
+    min-lead-hours: 24
+    # true = 촬영팀이 1팀. 상품이 달라도 같은 시간대 동시 예약 불가.
+    shared-resource: true
+    # true = 신청 즉시 CONFIRMED, false = 관리자 승인 후 CONFIRMED
+    auto-confirm: false
+
+  jwt:
+    secret: ${JWT_SECRET}
+    access-exp-minutes: ${JWT_ACCESS_EXP_MINUTES:30}
+    refresh-exp-days: ${JWT_REFRESH_EXP_DAYS:14}
+    issuer: monsterhouse
+    # 리프레시 토큰은 JS 가 읽을 수 없도록 httpOnly 쿠키로만 오갑니다.
+    # (액세스 토큰은 Authorization 헤더 → XSS 로 리프레시까지 털리는 걸 막는 구조)
+    refresh-cookie-name: mh_refresh
+    cookie-secure: ${JWT_COOKIE_SECURE:false}
+    cookie-same-site: ${JWT_COOKIE_SAME_SITE:Lax}
+
+  admin:
+    # 로그인 시도 제한 (기획서 §9)
+    max-login-attempts: 5
+    lock-minutes: 15
+
+  # 공개 폼(예약·문의) 스팸 방지 (기획서 §9)
+  # 캡차는 전환율을 떨어뜨리므로 2차로 미루고, 우선 IP 기준 횟수 제한 + honeypot 으로 막습니다.
+  rate-limit:
+    enabled: true
+    # window-seconds 동안 같은 IP 가 보낼 수 있는 횟수
+    capacity: 5
+    window-seconds: 60
+
+  mail:
+    from: ${MAIL_FROM:noreply@monsterhouse.example}
+    admin-to: ${MAIL_ADMIN_TO:admin@monsterhouse.example}
+    enabled: ${MAIL_ENABLED:false}
+
+  # --- LINE Messaging API (LINE Notify 아님. 2025-03-31 종료됨) ---
+  line:
+    enabled: ${LINE_ENABLED:false}
+    channel-access-token: ${LINE_CHANNEL_ACCESS_TOKEN:}
+    admin-user-id: ${LINE_ADMIN_USER_ID:}
+    push-url: https://api.line.me/v2/bot/message/push
+    connect-timeout-ms: 3000
+    read-timeout-ms: 5000
+    max-retry: 3
+
+  storage:
+    # local = 서버 디스크에 저장 (개발용). s3 = AWS S3 + CloudFront (운영)
+    # AWS 자격증명 없이도 개발할 수 있도록 구현을 둘로 나눠뒀습니다.
+    type: ${STORAGE_TYPE:local}
+    local-path: ${STORAGE_LOCAL_PATH:./uploads}
+    region: ${AWS_REGION:ap-northeast-2}
+    bucket: ${AWS_S3_BUCKET:monsterhouse-media}
+    cdn-domain: ${CLOUDFRONT_DOMAIN:}
+    presign-expire-minutes: 10
+    # 업로드 허용 한도 (기획서 §9 파일 업로드 검증)
+    max-image-bytes: 20971520      # 20MB
+    # 리사이즈 산출물 크기 (기획서 §6.2 — 썸네일/중간/원본 3종)
+    medium-width: 1600
+    thumb-width: 480
+
+  youtube:
+    api-key: ${YOUTUBE_API_KEY:}
+    channel-id: ${YOUTUBE_CHANNEL_ID:}
+    cache-ttl-minutes: 60
+    max-results: 3
+
+  # 개인정보 보유기간 (기획서 §9). 지나면 자동 파기합니다.
+  retention:
+    enabled: true
+    # 촬영 예약: 촬영 완료일로부터 1년
+    booking-days: 365
+    # 문의 내역: 처리 완료일로부터 6개월
+    inquiry-days: 180
+    # 매일 새벽 4시 (트래픽이 가장 적은 시간)
+    cron: "0 0 4 * * *"

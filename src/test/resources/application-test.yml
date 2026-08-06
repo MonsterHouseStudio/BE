@@ -1,0 +1,77 @@
+# 동시성 테스트는 H2 로 하면 의미가 없습니다.
+# (SELECT ... FOR UPDATE / 유니크 위반 동작이 MySQL 과 다름)
+# → Testcontainers 로 실제 MySQL 8 을 띄우고 검증합니다. Docker 필요.
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 동시 요청 테스트에서 커넥션이 모자라면 락 검증이 아니라 풀 대기를 측정하게 됩니다.
+      maximum-pool-size: 30
+      connection-timeout: 10000
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  messages:
+    cache-duration: 0
+
+logging:
+  level:
+    root: WARN
+    com.monsterhouse: DEBUG
+    org.hibernate.SQL: DEBUG
+
+app:
+  booking:
+    slot-step-min: 30
+    buffer-min: 0
+    max-advance-days: 90
+    min-lead-hours: 0
+    shared-resource: true
+    auto-confirm: false
+  jwt:
+    secret: test-secret-key-for-junit-only-at-least-32-bytes
+    access-exp-minutes: 30
+    refresh-exp-days: 14
+    issuer: monsterhouse-test
+    refresh-cookie-name: mh_refresh
+    cookie-secure: false
+    cookie-same-site: Lax
+  admin:
+    max-login-attempts: 5
+    lock-minutes: 15
+  rate-limit:
+    enabled: true
+    capacity: 3
+    window-seconds: 60
+
+  storage:
+    # 테스트는 build 밑에 쓰고 clean 때 같이 지워지게 둡니다.
+    type: local
+    local-path: ./build/test-uploads
+    max-image-bytes: 20971520
+    medium-width: 1600
+    thumb-width: 480
+
+  retention:
+    # 테스트 중 스케줄러가 돌면 다른 테스트 데이터를 지울 수 있습니다.
+    enabled: false
+    booking-days: 365
+    inquiry-days: 180
+    cron: "0 0 4 * * *"
+
+  youtube:
+    api-key: ""
+    channel-id: ""
+    cache-ttl-minutes: 60
+    max-results: 3
+
+  mail:
+    enabled: false
+  line:
+    enabled: false

@@ -1,0 +1,67 @@
+# 이 파일을 application-local.yml 로 복사한 뒤 CHANGE_ME 를 채우세요.
+#   cp application-local.yml.example application-local.yml
+# application-local.yml 은 .gitignore 되어 있습니다 (개인정보·자격증명 포함).
+
+spring:
+  datasource:
+    # docker-compose 가 호스트 3307 로 노출합니다(3306 은 다른 프로젝트가 쓰는 경우가 많음).
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:monsterhouse}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USERNAME:monster}
+    password: ${DB_PASSWORD:CHANGE_ME}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      connection-timeout: 10000
+      pool-name: monsterhouse-local-pool
+
+  jpa:
+    hibernate:
+      # local 은 update. 스키마가 굳으면 Flyway 로 전환.
+      ddl-auto: update
+    show-sql: false
+
+  messages:
+    cache-duration: 0
+
+logging:
+  level:
+    root: INFO
+    com.monsterhouse: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    # 예약 동시성 디버깅 시 유용
+    org.springframework.orm.jpa: DEBUG
+    org.springframework.transaction: DEBUG
+
+app:
+  cors:
+    # 로컬 dev 서버 포트가 유동적이라(5173 점유 시 자동 배정) 포트를 와일드카드로 둡니다.
+    # 운영(application-prod.yml)에서는 반드시 정확한 도메인만 나열하세요.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+
+  # ⚠ Spring Boot 는 .env 파일을 자동으로 읽지 않습니다.
+  #    운영값은 환경변수/SSM 으로 주입하고, local 에서만 아래 기본값으로 기동합니다.
+  #    이 값은 절대 운영에 쓰지 마세요. (prod 프로필에는 기본값이 없어 미주입 시 기동 실패합니다)
+  jwt:
+    secret: ${JWT_SECRET:CHANGE_ME_local_only_secret_at_least_32_bytes}
+    # localhost 는 https 가 아니라 Secure 쿠키를 붙이면 브라우저가 저장하지 않습니다.
+    cookie-secure: false
+
+  admin:
+    max-login-attempts: 5
+    lock-minutes: 15
+    # 개발 편의용 초기 관리자 계정. local 프로필에서만 생성되며
+    # 이미 같은 아이디가 있으면 아무 것도 하지 않습니다.
+    seed:
+      enabled: true
+      username: admin
+      password: CHANGE_ME
+
+  rate-limit:
+    # 개발 중에는 폼을 반복 제출하게 되므로 넉넉하게 둡니다.
+    capacity: 100
+
+  mail:
+    enabled: false
+  line:
+    enabled: false

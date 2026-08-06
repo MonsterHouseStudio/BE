@@ -1,0 +1,66 @@
+# ============================================
+#  시크릿 — KoALa 노출 사례 재발 방지
+#  실제 값은 전부 .env / SSM 으로. yml 에는 ${ENV} 플레이스홀더만.
+# ============================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# --- build ---
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.gradle/
+out/
+bin/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# --- IDE ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- logs ---
+logs/
+*.log
+
+# --- 로컬 업로드 임시 파일 ---
+uploads/
+tmp/
+
+# ============================================
+#  개인정보 · 자격증명 (루트 .gitignore 와 동일 규칙)
+# ============================================
+# 로컬/운영 설정에는 DB 비밀번호, JWT 시크릿, 초기 관리자 계정이 들어 있습니다.
+src/main/resources/application-local.yml
+src/main/resources/application-prod.yml
+!src/main/resources/application-local.yml.example
+!src/main/resources/application-prod.yml.example
+
+# DB 덤프·백업 (예약자 이름·전화·이메일 포함)
+*.sql
+!docker/mysql/init/*.sql
+*.sql.gz
+*.dump
+*.mysql
+dump/
+backup/
+backups/
+
+# 관리자 화면에서 내려받은 목록
+*.csv
+*.xlsx
+export/

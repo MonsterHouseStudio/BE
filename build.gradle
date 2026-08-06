@@ -1,0 +1,125 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.monsterhouse'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    querydslVersion = '5.1.0'
+}
+
+// Spring Boot 의 dependency-management 가 Testcontainers 버전을 고정합니다.
+// 별도로 testcontainers-bom 을 넣어도 Boot 가 관리하는 버전이 이깁니다.
+// (dependencies 로 확인하면 1.21.3 -> 1.19.8 로 내려가는 게 보입니다)
+// 따라서 Boot 가 쓰는 버전 프로퍼티 자체를 덮어써야 합니다.
+//
+// 올리는 이유: Docker Engine 29.x 는 오래된 Engine API 버전을 거부합니다.
+// 1.19.8 이 쓰는 docker-java 3.3.6 은 /info 에서 HTTP 400 을 받고
+// "Could not find a valid Docker environment" 로 죽습니다.
+ext['testcontainers.version'] = '1.21.3'
+
+dependencies {
+    // --- core ---
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+    // application.yml 의 management.* 설정과 SecurityConfig 의 /actuator/health 허용이
+    // 이 의존성을 전제로 합니다. 없으면 /actuator/health 가 404 로 떨어집니다.
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // --- QueryDSL (복잡한 예약 검색 대응) ---
+    implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
+    annotationProcessor "com.querydsl:querydsl-apt:${querydslVersion}:jakarta"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+    // --- JWT (관리자 인증) ---
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // --- AWS S3 (갤러리 이미지) ---
+    implementation platform('software.amazon.awssdk:bom:2.28.16')
+    implementation 'software.amazon.awssdk:s3'
+
+    // --- 이미지 리사이즈/WebP 파이프라인 ---
+    implementation 'net.coobird:thumbnailator:0.4.20'
+
+    // --- lombok ---
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // --- DB ---
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // --- test ---
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+
+    // Docker Engine 29.x 는 Engine API 1.44 미만을 거부합니다(`docker version` 의
+    // "minimum version" 참고). docker-java 는 더 낮은 버전으로 협상해서
+    // /info 에서 HTTP 400 을 받고 "Could not find a valid Docker environment" 로 죽습니다.
+    // 명시적으로 지정해 협상을 건너뜁니다.
+    // docker-java 는 시스템 프로퍼티 api.version 을 먼저 봅니다.
+    // 환경변수만으로는 일부 ClientProviderStrategy 에 전달되지 않습니다.
+    if (System.getenv('DOCKER_API_VERSION') == null) {
+        environment 'DOCKER_API_VERSION', '1.44'
+        systemProperty 'api.version', '1.44'
+    }
+
+    // Docker Desktop 의 활성 context 는 desktop-linux 이고 실제 엔진은
+    // dockerDesktopLinuxEngine 파이프에 있습니다. 레거시 docker_engine 파이프는
+    // 비어 있는 Info 를 400 과 함께 돌려줍니다. Testcontainers 는 docker CLI 의
+    // context 를 읽지 않으므로 직접 지정합니다.
+    if (org.gradle.internal.os.OperatingSystem.current().windows
+            && System.getenv('DOCKER_HOST') == null) {
+        environment 'DOCKER_HOST', 'npipe:////./pipe/dockerDesktopLinuxEngine'
+    }
+
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat = 'short'
+    }
+}
+
+// --- QueryDSL Q클래스 생성 위치 ---
+def generatedDir = layout.buildDirectory.dir('generated/querydsl')
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.generatedSourceOutputDirectory = generatedDir.get().asFile
+}
+
+clean {
+    delete generatedDir
+}

@@ -1,0 +1,47 @@
+# 운영 설정 예시. 실제 값은 환경변수/SSM 으로만 주입합니다.
+# 이 파일에는 기본값이 없어야 하며, 미주입 시 기동이 실패하는 것이 정상입니다.
+
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?useSSL=true&requireSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 10000
+      max-lifetime: 1740000
+      pool-name: monsterhouse-pool
+
+  jpa:
+    hibernate:
+      # 운영은 절대 update 금지. 스키마 변경은 마이그레이션으로.
+      ddl-auto: validate
+    show-sql: false
+
+  messages:
+    cache-duration: 3600
+
+logging:
+  level:
+    root: WARN
+    com.monsterhouse: INFO
+  file:
+    name: /app/logs/monsterhouse.log
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 30
+      total-size-cap: 2GB
+
+app:
+  jwt:
+    # HTTPS 전제. Secure 를 끄면 리프레시 쿠키가 평문으로 오갑니다.
+    cookie-secure: true
+    cookie-same-site: Strict
+
+  mail:
+    enabled: true
+  line:
+    enabled: ${LINE_ENABLED:true}
