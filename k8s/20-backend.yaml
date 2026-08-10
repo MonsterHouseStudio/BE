@@ -1,0 +1,147 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: monsterhouse
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+---
+# 업로드 이미지 저장소 (STORAGE_TYPE=local 일 때만 사용).
+#
+# ★ ReadWriteOnce 라 파드 하나만 마운트할 수 있습니다.
+#   그래서 아래 Deployment 의 replicas 가 1 로 고정되어 있습니다.
+#   스케일아웃하려면 이 PVC 를 떼고 STORAGE_TYPE=s3 로 바꾸세요.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-uploads
+  namespace: monsterhouse
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: monsterhouse
+spec:
+  # ┌─────────────────────────────────────────────────────────────────┐
+  # │ 스케일아웃 체크리스트 (replicas 를 2 이상으로 올리기 전)          │
+  # │                                                                 │
+  # │  1. STORAGE_TYPE=s3 로 변경 + 아래 uploads 볼륨 제거             │
+  # │     → local 이면 이미지가 올린 파드에만 남습니다                  │
+  # │  2. ShedLock ✅ 이미 적용됨                                      │
+  # │     → 파기 배치가 파드 수만큼 중복 실행되는 것을 막습니다          │
+  # │  3. strategy 를 RollingUpdate 로 변경 (아래 주석 참고)            │
+  # │  4. 레이트리밋은 파드별 인메모리입니다                            │
+  # │     → 60초당 5회가 파드 2개면 실효 10회가 됩니다. 감수하거나       │
+  # │       Redis 로 옮기세요. 동작이 깨지진 않습니다.                  │
+  # └─────────────────────────────────────────────────────────────────┘
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  strategy:
+    # ★ Recreate 인 이유: ReadWriteOnce PVC 때문입니다.
+    #   RollingUpdate 면 새 파드가 뜨는 동안 옛 파드가 볼륨을 잡고 있어
+    #   새 파드가 Pending 에서 멈추고 배포가 영원히 안 끝납니다.
+    #   S3 로 옮겨 PVC 를 떼면 RollingUpdate 로 바꾸세요(무중단 배포).
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # ★ fsGroup 이 없으면 업로드가 통째로 실패합니다.
+      #   PVC 는 기본적으로 root 소유로 생성되는데 컨테이너는 UID 10001 로 돌기 때문에
+      #   /app/uploads 에 쓰기 권한이 없습니다.
+      #   fsGroup 을 주면 쿠버네티스가 마운트 시점에 볼륨 소유권을 바꿔줍니다.
+      #   (STORAGE_TYPE=s3 로 옮겨 PVC 를 떼면 이 설정도 필요 없어집니다)
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: backend
+          # ↓↓↓ 빌드한 이미지로 바꾸세요.
+          image: monsterhouse/backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: monsterhouse-config
+            - secretRef:
+                name: monsterhouse-secret
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+
+          # ----- 프로브 -----
+          # 세 종류를 나눠 쓰는 이유:
+          #   startup   — 기동에 15~25초 걸립니다(Flyway + JPA 검증).
+          #               이게 없으면 liveness 가 먼저 실패해 무한 재시작합니다.
+          #   readiness — DB 가 잠깐 끊기면 트래픽만 빼고 파드는 살려둡니다.
+          #   liveness  — 정말 죽었을 때만 재시작합니다.
+          #
+          # application.yml 에서 management.endpoint.health.probes.enabled=true 를
+          # 켜뒀기 때문에 아래 두 경로가 생깁니다.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 300m
+              memory: 512Mi
+            limits:
+              # CPU limit 은 일부러 두지 않았습니다.
+              # JVM 이 스로틀링되면 GC 가 길어지고 응답 지연이 튑니다.
+              # 메모리만 제한하고 CPU 는 노드가 알아서 나누게 둡니다.
+              memory: 1Gi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            # ★ Dockerfile 의 USER 10001 과 반드시 같아야 합니다.
+            #   runAsNonRoot 는 이미지의 USER 가 숫자여야 검증됩니다.
+            #   이름(app)이면 kubelet 이 non-root 인지 확인하지 못해
+            #   CreateContainerConfigError 로 파드가 뜨지 않습니다.
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop: ["ALL"]
+
+      # 배포 중 요청이 끊기지 않도록 graceful shutdown 시간을 줍니다.
+      # application.yml 의 server.shutdown=graceful, 알림 풀의
+      # awaitTerminationSeconds=20 보다 넉넉해야 합니다.
+      terminationGracePeriodSeconds: 45
+
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: backend-uploads

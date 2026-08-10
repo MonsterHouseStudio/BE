@@ -1,0 +1,59 @@
+# k3s 는 Traefik 을 기본 인그레스 컨트롤러로 함께 설치합니다.
+# 별도 설치 없이 표준 Ingress 리소스가 그대로 동작합니다.
+#
+# 경로 분배:
+#   /api      → backend   (REST API)
+#   /uploads  → backend   (STORAGE_TYPE=local 일 때 이미지 서빙)
+#   /         → frontend  (SPA)
+#
+# ★ 프론트와 백엔드를 같은 도메인에 두는 이유
+#   리프레시 토큰이 httpOnly 쿠키인데, 오리진이 다르면 서드파티 쿠키가 되어
+#   최근 브라우저에서 차단됩니다. 같은 오리진이면 CORS 도 필요 없습니다.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monsterhouse
+  namespace: monsterhouse
+  annotations:
+    # HTTP 로 들어와도 HTTPS 로 돌립니다.
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    # cert-manager 로 Let's Encrypt 인증서를 자동 발급받는 경우에만 필요합니다.
+    # 설치 전이면 이 줄과 아래 tls 블록을 함께 주석 처리하세요.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        # ↓↓↓ 실제 도메인으로 바꾸세요 (01-config.yaml 의 SITE_BASE_URL 과 일치해야 합니다)
+        - monsterhouse.example.com
+      secretName: monsterhouse-tls
+  rules:
+    - host: monsterhouse.example.com
+      http:
+        paths:
+          # ⚠ 더 구체적인 경로를 먼저 씁니다.
+          #   "/" 가 먼저 오면 /api 요청까지 프론트로 가서
+          #   nginx 가 index.html 을 돌려주고, 브라우저는 JSON 대신 HTML 을 받습니다.
+          #   (FE nginx.conf 에서 /api 를 404 로 막아둔 것이 이 실수의 안전망입니다)
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /uploads
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

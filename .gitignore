@@ -69,3 +69,15 @@ backups/
 *.csv
 *.xlsx
 export/
+
+# ===== 쿠버네티스 =====
+# 실제 비밀값이 들어가는 매니페스트. .example 만 커밋합니다.
+k8s/*-secret.yaml
+!k8s/*-secret.example.yaml
+# kubeconfig — 클러스터 전체 권한이 들어 있습니다
+kubeconfig
+*.kubeconfig
+
+# ===== 임시 작업물 =====
+# API 응답 확인 등에 쓴 스크래치 파일. 저장소에 남길 이유가 없습니다.
+build-tmp/
