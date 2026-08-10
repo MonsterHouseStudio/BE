@@ -1,8 +1,10 @@
 package com.monsterhouse.booking.service;
 
+import com.monsterhouse.booking.dto.request.ProductOptionSaveRequest;
 import com.monsterhouse.booking.dto.request.ProductSaveRequest;
 import com.monsterhouse.booking.dto.response.AdminProductResponse;
 import com.monsterhouse.booking.entity.Product;
+import com.monsterhouse.booking.entity.ProductOption;
 import com.monsterhouse.booking.repository.BookingRepository;
 import com.monsterhouse.booking.repository.ProductRepository;
 import com.monsterhouse.booking.entity.BookingStatus;
@@ -126,4 +128,38 @@ public class AdminProductService {
     LocalDateTime now() {
         return LocalDateTime.now();
     }
+
+
+    @Transactional
+    public AdminProductResponse addOption(Long productId, ProductOptionSaveRequest request){
+        Product product = getOrThrow(productId);
+        if(!product.isBookable()){
+            throw new BusinessException(ErrorCode.PRODUCT_NOT_BOOKABLE);
+        }
+        product.addOption(request.nameKo(), request.nameJa(), request.price(), request.maxQuantity(), request.sortOrder(), request.active());
+
+        // ★ flush 가 없으면 새 옵션의 id 가 아직 null 입니다.
+        //   INSERT 는 커밋 시점에 나가는데 응답은 그 전에 만들어지기 때문입니다.
+        //   Jackson 이 non_null 설정으로 null 필드를 빼버려서 응답에 id 가 통째로 사라지고,
+        //   프론트는 방금 만든 옵션을 수정·삭제할 수 없게 됩니다.
+        productRepository.flush();
+
+        log.info("Product option added, productId={} name={}", productId, request.nameKo());
+        return AdminProductResponse.of(product);
+    }
+    @Transactional
+    public AdminProductResponse updateOption(Long productId, Long optionId, ProductOptionSaveRequest request){
+        Product product = getOrThrow(productId);
+        ProductOption option = product.findOption(optionId).orElseThrow(() -> new BusinessException(ErrorCode.INVALID_OPTION));
+        option.update(request.nameKo(), request.nameJa(), request.price(), request.maxQuantity(), request.sortOrder(), request.active());
+        return AdminProductResponse.of(product);
+    }
+    @Transactional
+    public void deleteOption(Long productId, Long optionId){
+        Product product = getOrThrow(productId);
+        ProductOption option = product.findOption(optionId).orElseThrow(() -> new BusinessException(ErrorCode.INVALID_OPTION));
+        product.removeOption(option);
+        log.info("Product option deleted, productId={} optionId={}", productId, optionId);
+    }
+
 }

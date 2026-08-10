@@ -66,7 +66,41 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, Booking
                                    @Param("startAt") LocalDateTime startAt,
                                    @Param("endAt") LocalDateTime endAt,
                                    @Param("statuses") Collection<BookingStatus> statuses);
+    /**
+     * ★ 예약 변경용 겹침 검사 — 자기 자신을 반드시 제외합니다.
+     *
+     * 이게 없으면 10:00 예약을 10:30 으로 옮기는 것처럼
+     * "옛 시간과 새 시간이 겹치는" 이동이 100% 실패합니다.
+     * 자기 자신을 겹치는 예약으로 세어버리기 때문입니다.
+     */
+    @Query("""
+            select case when count(b) > 0 then true else false end
+            from Booking b
+            where b.id <> :excludeId
+              and b.status in :statuses
+              and b.startAt < :endAt
+              and b.endAt > :startAt
+            """)
+    boolean existsOverlapExcluding(@Param("excludeId") Long excludeId,
+                                   @Param("startAt") LocalDateTime startAt,
+                                   @Param("endAt") LocalDateTime endAt,
+                                   @Param("statuses") Collection<BookingStatus> statuses);
 
+    /** sharedResource=false 인 경우 */
+    @Query("""
+            select case when count(b) > 0 then true else false end
+            from Booking b
+            where b.id <> :excludeId
+              and b.product.id = :productId
+              and b.status in :statuses
+              and b.startAt < :endAt
+              and b.endAt > :startAt
+            """)
+    boolean existsOverlapByProductExcluding(@Param("excludeId") Long excludeId,
+                                            @Param("productId") Long productId,
+                                            @Param("startAt") LocalDateTime startAt,
+                                            @Param("endAt") LocalDateTime endAt,
+                                            @Param("statuses") Collection<BookingStatus> statuses);
     /**
      * 슬롯 목록 계산용 — 해당 날짜에 걸쳐 있는 활성 예약.
      * startAt 이 전날이고 endAt 이 오늘로 넘어오는 경우까지 잡기 위해 겹침 조건을 씁니다.

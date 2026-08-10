@@ -11,6 +11,7 @@ import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -122,6 +123,24 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail(
                         ErrorCode.NOT_FOUND.getCode(),
                         messageUtil.get(ErrorCode.NOT_FOUND.getMessageKey())));
+    }
+
+    /**
+     * ★ @PreAuthorize 거부 (AuthorizationDeniedException extends AccessDeniedException)
+     *
+     * SecurityConfig 에 RestAccessDeniedHandler 를 달아뒀지만 그것만으로는 부족합니다.
+     * 그 핸들러는 "필터 체인에서 막힌 요청"만 처리합니다.
+     * @PreAuthorize 는 컨트롤러 메서드를 호출하는 시점에 예외를 던지므로
+     * ExceptionTranslationFilter 까지 가지 않고 @RestControllerAdvice 가 먼저 잡습니다.
+     *
+     * 이 핸들러가 없으면 아래 catch-all 로 떨어져
+     * "권한이 없습니다(403)" 여야 할 응답이 "서버 오류(500)" 로 나갑니다.
+     * 실제로 MANAGER 가 SUPER_ADMIN 전용 API 를 호출했을 때 500 이 나왔습니다.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException e) {
+        log.info("Access denied: {}", e.getMessage());
+        return toResponse(ErrorCode.FORBIDDEN);
     }
 
     @ExceptionHandler(Exception.class)

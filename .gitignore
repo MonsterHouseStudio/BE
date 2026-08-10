@@ -53,6 +53,11 @@ src/main/resources/application-prod.yml
 # DB 덤프·백업 (예약자 이름·전화·이메일 포함)
 *.sql
 !docker/mysql/init/*.sql
+# ★ Flyway 마이그레이션은 반드시 커밋해야 합니다.
+#   DDL 만 들어 있어 개인정보가 없고, 이게 저장소에 없으면
+#   운영 배포에서 스키마가 아예 만들어지지 않습니다
+#   (prod 는 ddl-auto: validate 라 Hibernate 가 테이블을 만들어주지 않습니다).
+!src/main/resources/db/migration/*.sql
 *.sql.gz
 *.dump
 *.mysql

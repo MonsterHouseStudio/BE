@@ -2,6 +2,7 @@ package com.monsterhouse.booking.service;
 
 import com.monsterhouse.booking.dto.request.BookingCancelRequest;
 import com.monsterhouse.booking.dto.request.BookingCreateRequest;
+import com.monsterhouse.booking.dto.request.BookingRescheduleRequest;
 import com.monsterhouse.booking.dto.response.BookingResponse;
 import com.monsterhouse.booking.entity.Booking;
 import com.monsterhouse.booking.entity.BookingOption;
@@ -16,6 +17,7 @@ import com.monsterhouse.common.config.BookingProperties;
 import com.monsterhouse.common.enums.LocaleCode;
 import com.monsterhouse.common.exception.BusinessException;
 import com.monsterhouse.common.exception.ErrorCode;
+import com.monsterhouse.notification.event.BookingRescheduledEvent;
 import com.monsterhouse.notification.event.BookingStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -196,6 +198,20 @@ public class BookingService {
 
         return BookingResponse.of(booking, locale);
     }
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public BookingResponse rescheduleByCustomer(String bookingCode, BookingRescheduleRequest request, LocaleCode locale){
+        Booking booking = bookingRepository.findByBookingCode(bookingCode).orElseThrow(() -> new BusinessException(ErrorCode.BOOKING_NOT_FOUND));
+        if(!booking.isOwnedBy(request.email())){
+            throw new BusinessException(ErrorCode.BOOKING_NOT_FOUND);
+        }
+        slotService.validateChangeableNow(booking.getStartAt());
+        LocalDateTime previousStartAt = booking.getStartAt();
+        applyReschedule(booking, request.startAt(), true);
+        booking.revertToRequested();
+        eventPublisher.publishEvent(new BookingRescheduledEvent(booking.getId(), previousStartAt, booking.getStartAt()));
+        return BookingResponse.of(booking, locale);
+    }
+
 
     // ===================== 관리자 =====================
 
@@ -226,6 +242,21 @@ public class BookingService {
 
         eventPublisher.publishEvent(
                 new BookingStatusChangedEvent(booking.getId(), before, BookingStatus.CANCELED));
+
+        return BookingResponse.of(booking, booking.getLocale());
+    }
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public BookingResponse rescheduleByAdmin(Long bookingId, LocalDateTime startAt) {
+        Booking booking = getOrThrow(bookingId);
+
+        LocalDateTime previousStartAt = booking.getStartAt();
+        applyReschedule(booking, startAt, false);
+
+        eventPublisher.publishEvent(new BookingRescheduledEvent(
+                booking.getId(), previousStartAt, booking.getStartAt()));
+
+        log.info("Booking rescheduled by admin. code={} {} -> {}",
+                booking.getBookingCode(), previousStartAt, booking.getStartAt());
 
         return BookingResponse.of(booking, booking.getLocale());
     }
@@ -263,7 +294,56 @@ public class BookingService {
         return bookingRepository.existsOverlapByProduct(
                 productId, startAt, endAt, BookingStatus.occupyingStatuses());
     }
+    private void applyReschedule(Booking booking, LocalDateTime requestedStartAt,
+                                 boolean enforceCustomerPolicy) {
+        // 락을 잡기 전에 먼저 걸러냅니다. 완료·취소 건은 볼 것도 없습니다.
+        if (!booking.getStatus().canReschedule()) {
+            throw new BusinessException(ErrorCode.RESCHEDULE_NOT_ALLOWED);
+        }
 
+        Product product = booking.getProduct();
+
+        LocalDateTime startAt = requestedStartAt.withSecond(0).withNano(0);
+        LocalDateTime endAt = startAt.plusMinutes(
+                product.getDurationMin() + bookingProperties.bufferMin());
+
+        // 같은 시각으로의 변경은 락까지 갈 것 없이 여기서 끊습니다.
+        if (startAt.equals(booking.getStartAt())) {
+            throw new BusinessException(ErrorCode.SAME_SLOT);
+        }
+
+        slotService.validateWithinBusinessHours(product, startAt, endAt, enforceCustomerPolicy);
+
+        // ───── 1층: 새 날짜 락 ─────
+        acquireDayLock(startAt.toLocalDate());
+
+        // ───── 2층: 겹침 검사 (자기 자신 제외) ─────
+        if (isOverlappingExcluding(booking.getId(), product.getId(), startAt, endAt)) {
+            throw new SlotAlreadyTakenException();
+        }
+
+        booking.reschedule(startAt, endAt,
+                Booking.slotKeyOf(product.getId(), startAt, bookingProperties.sharedResource()));
+
+        // ───── 3층: UNIQUE(slot_key) ─────
+        try {
+            bookingRepository.saveAndFlush(booking);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Unique constraint caught a duplicated slot on reschedule. slotKey={}",
+                    booking.getSlotKey(), e);
+            throw new SlotAlreadyTakenException();
+        }
+    }
+
+    private boolean isOverlappingExcluding(Long bookingId, Long productId,
+                                           LocalDateTime startAt, LocalDateTime endAt) {
+        if (bookingProperties.sharedResource()) {
+            return bookingRepository.existsOverlapExcluding(
+                    bookingId, startAt, endAt, BookingStatus.occupyingStatuses());
+        }
+        return bookingRepository.existsOverlapByProductExcluding(
+                bookingId, productId, startAt, endAt, BookingStatus.occupyingStatuses());
+    }
     /**
      * 선택된 옵션을 검증하고 스냅샷으로 바꿉니다.
      *

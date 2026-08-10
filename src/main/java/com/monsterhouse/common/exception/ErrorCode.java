@@ -36,6 +36,8 @@ public enum ErrorCode {
     PRODUCT_IN_USE("B011", HttpStatus.CONFLICT, "error.product.in.use"),
     PRODUCT_NOT_BOOKABLE("B012", HttpStatus.BAD_REQUEST, "error.product.not.bookable"),
     INVALID_OPTION("B013", HttpStatus.BAD_REQUEST, "error.booking.invalid.option"),
+    RESCHEDULE_NOT_ALLOWED("B014", HttpStatus.BAD_REQUEST, "error.booking.reschedule.not.allowed"),
+    SAME_SLOT("B015", HttpStatus.BAD_REQUEST, "error.booking.same.slot"),
     // ===== 콘텐츠 =====
     POST_NOT_FOUND("P001", HttpStatus.NOT_FOUND, "error.post.not.found"),
     TRANSLATION_MISSING("P002", HttpStatus.NOT_FOUND, "error.translation.missing"),
@@ -54,7 +56,12 @@ public enum ErrorCode {
 
     // ===== 파일 업로드 =====
     FILE_TOO_LARGE("F001", HttpStatus.PAYLOAD_TOO_LARGE, "error.file.too.large"),
-    UNSUPPORTED_FILE_TYPE("F002", HttpStatus.BAD_REQUEST, "error.file.unsupported");
+    UNSUPPORTED_FILE_TYPE("F002", HttpStatus.BAD_REQUEST, "error.file.unsupported"),
+    // ===== 관리자 계정 =====
+    DUPLICATE_USERNAME("A006", HttpStatus.CONFLICT, "error.auth.duplicate.username"),
+    SAME_PASSWORD("A007", HttpStatus.BAD_REQUEST, "error.auth.same.password"),
+    CANNOT_DISABLE_SELF("A008", HttpStatus.BAD_REQUEST, "error.auth.cannot.disable.self");
+
     private final String code;
     private final HttpStatus status;
     private final String messageKey;

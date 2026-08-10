@@ -23,11 +23,17 @@ public enum BookingStatus {
 
     static {
         ALLOWED.put(REQUESTED, EnumSet.of(CONFIRMED, CANCELED));
-        ALLOWED.put(CONFIRMED, EnumSet.of(COMPLETED, CANCELED));
+
+        // ★ REQUESTED 가 추가됐습니다.
+        //   확정된 예약을 고객이 스스로 다른 시간으로 옮기면 확정을 되돌립니다.
+        //   사장님이 그 시간에 맞춰 잡아둔 일정이 있으므로 새 시간은 재확인이 필요합니다.
+        //   이 전이는 Booking.revertToRequested() 에서만 사용합니다.
+        ALLOWED.put(CONFIRMED, EnumSet.of(COMPLETED, CANCELED, REQUESTED));
+
         ALLOWED.put(COMPLETED, EnumSet.noneOf(BookingStatus.class));
         ALLOWED.put(CANCELED, EnumSet.noneOf(BookingStatus.class));
     }
-
+    public boolean canReschedule() {return this == REQUESTED || this == CONFIRMED;}
     public boolean canTransitionTo(BookingStatus next) {
         return ALLOWED.get(this).contains(next);
     }

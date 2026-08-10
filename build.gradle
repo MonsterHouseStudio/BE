@@ -79,7 +79,15 @@ dependencies {
 
     // --- DB ---
     runtimeOnly 'com.mysql:mysql-connector-j'
+    // -- Db마이그레이션
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
 
+    // --- ShedLock (파드 여러 대일 때 @Scheduled 중복 실행 방지) ---
+    // 락 저장소로 Redis 대신 DB 테이블(shedlock) 한 개만 씁니다.
+    // JdbcTemplate 은 spring-boot-starter-data-jpa 가 이미 끌고 옵니다.
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.16.0'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.16.0'
     // --- test ---
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'

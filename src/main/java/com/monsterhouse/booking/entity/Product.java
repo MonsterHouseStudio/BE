@@ -7,10 +7,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.math.BigDecimal;
+import java.util.Optional;
 
 /**
  * 촬영 상품.
@@ -195,5 +197,42 @@ public class Product extends BaseTimeEntity {
     }
     public void deactivate() {
         this.active = false;
+    }
+    /**
+     * 옵션을 id 로 찾습니다.
+     * 다른 상품의 옵션 id 가 넘어오는 걸 막는 역할도 합니다
+     * (5만원 상품에 남의 상품 저가 옵션을 붙이는 식의 조작 차단).
+     */
+    public java.util.Optional<ProductOption> findOption(Long optionId) {
+        return options.stream()
+                .filter(o -> o.getId() != null && o.getId().equals(optionId))
+                .findFirst();
+    }
+
+    /** active 까지 지정하는 관리자용 오버로드 */
+    public ProductOption addOption(String nameKo, String nameJa, BigDecimal price,
+                                   int maxQuantity, int sortOrder, boolean active) {
+        ProductOption option = ProductOption.builder()
+                .product(this)
+                .nameKo(nameKo)
+                .nameJa(nameJa)
+                .price(price)
+                .maxQuantity(maxQuantity)
+                .sortOrder(sortOrder)
+                .build();
+
+        // 빌더는 active 를 항상 true 로 만듭니다(생성자 참고).
+        // 비활성으로 만들어야 하면 곧바로 update 로 내립니다.
+        if (!active) {
+            option.update(nameKo, nameJa, price, maxQuantity, sortOrder, false);
+        }
+
+        this.options.add(option);
+        return option;
+    }
+
+    public void removeOption(ProductOption option) {
+        // orphanRemoval = true 라 컬렉션에서 빼면 DB 에서도 삭제됩니다.
+        this.options.remove(option);
     }
 }

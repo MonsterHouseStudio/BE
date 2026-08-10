@@ -1,6 +1,7 @@
 package com.monsterhouse.booking.dto.response;
 
 import com.monsterhouse.booking.entity.Product;
+import com.monsterhouse.booking.entity.ProductOption;
 import com.monsterhouse.booking.entity.ProductType;
 import com.monsterhouse.common.enums.LocaleCode;
 
@@ -25,6 +26,7 @@ public record AdminProductResponse(
         boolean bookable,
         String noteKo,
         String noteJa,
+        List<ProductOptionResponse> options,
         boolean translated
 ) {
     public static AdminProductResponse of(Product product){
@@ -49,6 +51,10 @@ public record AdminProductResponse(
                 product.isBookable(),
                 product.getNoteKo(),
                 product.getNoteJa(),
+                product.getOptions().stream()
+                        .sorted(java.util.Comparator.comparingInt(ProductOption::getSortOrder))
+                        .map(o -> ProductOptionResponse.of(o, LocaleCode.KO))
+                        .toList(),
                 translated
         );
     }

@@ -1,5 +1,6 @@
 package com.monsterhouse.booking.controller;
 
+import com.monsterhouse.booking.dto.request.AdminBookingRescheduleRequest;
 import com.monsterhouse.booking.dto.request.BookingSearchCondition;
 import com.monsterhouse.booking.dto.response.AdminBookingResponse;
 import com.monsterhouse.booking.dto.response.BookingResponse;
@@ -10,6 +11,7 @@ import com.monsterhouse.booking.service.BookingService;
 import com.monsterhouse.common.enums.LocaleCode;
 import com.monsterhouse.common.response.ApiResponse;
 import com.monsterhouse.common.response.PageResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -69,5 +71,12 @@ public class AdminBookingController {
     public ApiResponse<BookingResponse> cancel(@PathVariable Long bookingId, @RequestBody(required = false) Map<String, String> body) {
         String reason = body == null ? null : body.get("reason");
         return ApiResponse.ok(bookingService.cancelByAdmin(bookingId, reason));
+    }
+
+    @PostMapping("/{bookingId}/reschedule")
+    public ApiResponse<BookingResponse> reschedule(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody AdminBookingRescheduleRequest request) {
+        return ApiResponse.ok(bookingService.rescheduleByAdmin(bookingId, request.startAt()));
     }
 }

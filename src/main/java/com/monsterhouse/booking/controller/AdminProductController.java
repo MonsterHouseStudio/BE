@@ -1,5 +1,6 @@
 package com.monsterhouse.booking.controller;
 
+import com.monsterhouse.booking.dto.request.ProductOptionSaveRequest;
 import com.monsterhouse.booking.dto.request.ProductSaveRequest;
 import com.monsterhouse.booking.dto.response.AdminProductResponse;
 import com.monsterhouse.booking.service.AdminProductService;
@@ -53,6 +54,26 @@ public class AdminProductController {
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long productId) {
         productService.delete(productId);
+        return ApiResponse.ok();
+    }
+    @PostMapping("/{productId}/options")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<AdminProductResponse> addOption(
+            @PathVariable Long productId,
+            @Valid @RequestBody ProductOptionSaveRequest request){
+        return ApiResponse.ok(productService.addOption(productId, request));
+    }
+    @PutMapping("/{productId}/options/{optionId}")
+    public ApiResponse<AdminProductResponse> updateOption(
+            @PathVariable Long productId,
+            @PathVariable Long optionId,
+            @Valid @RequestBody ProductOptionSaveRequest request){
+        return ApiResponse.ok(productService.updateOption(productId, optionId, request));
+    }
+    @DeleteMapping("/{productId}/options/{optionId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<Void> deleteOption(@PathVariable Long productId, @PathVariable Long optionId){
+        productService.deleteOption(productId, optionId);
         return ApiResponse.ok();
     }
 }

@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.LocalDateTime;
+
 /**
  * ★ 기획서 §4.3 — "알림 발송은 트랜잭션 밖(커밋 후 이벤트)"
  *
@@ -62,6 +64,22 @@ public class BookingEventListener {
             notifyCustomer(booking, "mail.booking.canceled.subject", "mail.booking.canceled.body");
         }
     }
+    @Async(AsyncConfig.NOTIFICATION_EXECUTOR)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleRescheduled(BookingRescheduledEvent event){
+        Booking booking = bookingRepository.findById(event.bookingId()).orElse(null);
+        if(booking == null){
+            log.warn("Booking not found for reschedule notification. id={}", event.bookingId());
+            return;
+        }
+        notifyCustomer(booking,"mail.booking.rescheduled.subject", "mail.booking.rescheduled.body");
+        notifyAdminOfReschedule(booking, event.previousStartAt());
+    }
+   private void notifyAdminOfReschedule(Booking booking, LocalDateTime previousStartAt){
+        String body = messageUtil.get("line.booking.rescheduled", LocaleCode.KO, booking.getProduct().name(LocaleCode.KO), DateTimeFormatUtil.dateTime(previousStartAt, LocaleCode.KO), DateTimeFormatUtil.range(booking.getStartAt(), booking.getEndAt(), LocaleCode.KO), booking.getName(), booking.getPhone());
+        notificationService.notifyAdmin("[예약 변경] " + booking.getBookingCode(), body);
+   }
 
     private void notifyCustomer(Booking booking, String subjectKey, String bodyKey) {
         LocaleCode locale = booking.getLocale();

@@ -185,6 +185,21 @@ public class Booking extends BaseTimeEntity {
         this.cancelReason = reason;
     }
 
+    public void reschedule(LocalDateTime startAt, LocalDateTime endAt, String slotKey){
+        if(!this.status.canReschedule()){
+            throw new BusinessException(ErrorCode.RESCHEDULE_NOT_ALLOWED);
+        }
+        this.startAt = startAt;
+        this.endAt = endAt;
+        this.slotKey = slotKey;
+    }
+    public void revertToRequested(){
+        if(this.status != BookingStatus.CONFIRMED){
+            return;
+        }
+        transitionTo(BookingStatus.REQUESTED);
+        this.confirmedAt = null;
+    }
     private void transitionTo(BookingStatus next) {
         if (!this.status.canTransitionTo(next)) {
             throw new BusinessException(ErrorCode.INVALID_BOOKING_STATUS);
@@ -195,4 +210,5 @@ public class Booking extends BaseTimeEntity {
     public boolean isOwnedBy(String email) {
         return this.email != null && this.email.equalsIgnoreCase(email);
     }
+
 }

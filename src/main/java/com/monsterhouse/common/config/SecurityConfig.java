@@ -59,12 +59,31 @@ public class SecurityConfig {
 
                         // --- 공개 API ---
                         .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
+                        // 비회원 예약이라 로그인이 없습니다. 본인 확인은
+                        // "예약번호 + 이메일 일치"를 각 서비스 메서드가 직접 합니다.
+                        // ⚠ 고객용 예약 API 를 새로 만들면 반드시 여기에 추가해야 합니다.
+                        //   빠뜨리면 anyRequest().denyAll() 에 걸려 401 이 납니다.
                         .requestMatchers(HttpMethod.POST,
                                 "/api/bookings",
                                 "/api/bookings/*/cancel",
+                                "/api/bookings/*/reschedule",
                                 "/api/inquiries").permitAll()
 
-                        .requestMatchers("/actuator/health").permitAll()
+                        // ★ /** 가 반드시 필요합니다.
+                        //   "/actuator/health" 만 허용하면 정확히 그 경로만 열립니다.
+                        //   쿠버네티스 프로브가 쓰는 하위 경로
+                        //     /actuator/health/liveness
+                        //     /actuator/health/readiness
+                        //   는 anyRequest().denyAll() 에 걸려 401 이 됩니다.
+                        //
+                        //   그러면 파드가 영원히 Ready 가 되지 않아 서비스에 편입되지 못하고,
+                        //   startupProbe 실패로 무한 재시작에 빠집니다.
+                        //   앱 자체는 멀쩡히 떠 있어서 로그만 봐서는 원인을 못 찾습니다.
+                        //   (실제로 k3s 에 올렸을 때 이 증상으로 막혔습니다)
+                        //
+                        //   health 그룹은 show-details: never 라 상태값만 노출되므로
+                        //   공개해도 정보가 새지 않습니다.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/sitemap.xml", "/robots.txt").permitAll()
                         // 로컬 저장소로 올린 이미지 서빙 경로.
                         // /api 로 시작하지 않아 위의 GET permitAll 에 걸리지 않고,

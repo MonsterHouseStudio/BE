@@ -2,6 +2,7 @@ package com.monsterhouse.booking.controller;
 
 import com.monsterhouse.booking.dto.request.BookingCancelRequest;
 import com.monsterhouse.booking.dto.request.BookingCreateRequest;
+import com.monsterhouse.booking.dto.request.BookingRescheduleRequest;
 import com.monsterhouse.booking.dto.response.BookingResponse;
 import com.monsterhouse.booking.service.BookingService;
 import com.monsterhouse.common.enums.LocaleCode;
@@ -32,5 +33,10 @@ public class BookingController {
     }
     private LocaleCode currentLocale(){
         return LocaleCode.from(LocaleContextHolder.getLocale());
+    }
+    @PostMapping("/{bookingCode}/reschedule")
+    public ApiResponse<BookingResponse> reschedule(@PathVariable String bookingCode, @Valid @RequestBody BookingRescheduleRequest request){
+        return ApiResponse.ok(
+                bookingService.rescheduleByCustomer(bookingCode, request, currentLocale()));
     }
 }

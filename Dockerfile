@@ -24,10 +24,17 @@ WORKDIR /app
 ENV TZ=Asia/Seoul
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Duser.timezone=Asia/Seoul -Dfile.encoding=UTF-8"
 
-RUN groupadd -r app && useradd -r -g app app
+# ★ USER 는 반드시 숫자 UID 로 지정합니다.
+#   이름("app")으로 두면 쿠버네티스가 securityContext.runAsNonRoot 를 검증하지 못해
+#   파드가 CreateContainerConfigError 로 뜨지 않습니다:
+#     "container has runAsNonRoot and image has non-numeric user (app),
+#      cannot verify user is non-root"
+#   kubelet 은 이미지 메타데이터의 USER 문자열만 보고 판단하므로,
+#   /etc/passwd 에 계정이 있어도 이름이면 root 가 아님을 확인할 방법이 없습니다.
+RUN groupadd -r -g 10001 app && useradd -r -u 10001 -g app app
 COPY --from=builder /workspace/build/libs/*.jar app.jar
-RUN chown app:app app.jar
-USER app
+RUN chown 10001:10001 app.jar
+USER 10001
 
 EXPOSE 8080
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

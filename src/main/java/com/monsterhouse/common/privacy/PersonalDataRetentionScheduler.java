@@ -1,31 +1,34 @@
 package com.monsterhouse.common.privacy;
 
-import com.monsterhouse.admin.repository.RefreshTokenRepository;
-import com.monsterhouse.booking.repository.BookingRepository;
-import com.monsterhouse.common.config.RetentionProperties;
-import com.monsterhouse.inquiry.entity.Inquiry;
-import com.monsterhouse.inquiry.repository.InquiryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
- * 개인정보 보유기간 경과분 자동 파기 (기획서 §9).
+ * 개인정보 파기 배치의 실행 시점만 담당합니다. 실제 파기는 Service 가 합니다.
  *
- * "보유기간을 방침에 적어두고 실제로는 계속 갖고 있는" 상태가 가장 위험합니다.
- * 방침 문구와 코드가 같은 값을 보도록 application.yml 한 곳에서 관리합니다.
+ * ★ 트랜잭션을 이 클래스에서 뺀 이유
+ *   @Scheduled + @SchedulerLock + @Transactional 을 한 메서드에 겹쳐 놓으면
+ *   "락을 잡는 게 먼저냐, 트랜잭션을 여는 게 먼저냐"가 AOP 순서에 의존하게 됩니다.
+ *   락은 트랜잭션 바깥에서 잡혀야 합니다 — 트랜잭션 안에서 잡으면
+ *   락 획득·해제가 배치 트랜잭션의 커밋/롤백에 끌려다니게 됩니다.
+ *   그래서 여기(락)와 Service(트랜잭션)로 층을 갈랐습니다.
  *
- * ⚠ 파기 대상은 "완료된" 건뿐입니다.
- *   진행 중인 예약이나 미처리 문의를 날짜만 보고 지우면 운영이 마비됩니다.
+ * ★ lockAtMostFor = 10분
+ *   이 파드가 배치 도중 죽으면 락을 풀어줄 주체가 없습니다.
+ *   10분이 지나면 자동으로 풀려 다음 날 배치가 정상 실행됩니다.
+ *   "배치가 아무리 오래 걸려도 이보다는 짧다"는 상한값이어야 합니다.
+ *   실제로 이 시간을 넘기면 다른 파드가 끼어들 수 있습니다.
  *
- * ⚠ 인스턴스가 여러 대면 같은 시각에 동시에 돌아 중복 실행됩니다.
- *   지금은 단일 인스턴스라 문제없지만, 스케일아웃 시 ShedLock 등이 필요합니다.
+ * ★ lockAtLeastFor = 30초
+ *   지울 게 없으면 배치가 0.1초 만에 끝납니다. 그 즉시 락이 풀리는데,
+ *   다른 파드의 시계가 조금 늦으면 아직 "새벽 4시 0분"이라 판단해 한 번 더 실행합니다.
+ *   최소 30초는 락을 물고 있게 해서 그 창을 닫습니다.
  */
 @Slf4j
 @Component
@@ -33,48 +36,21 @@ import java.util.List;
 @ConditionalOnProperty(name = "app.retention.enabled", havingValue = "true", matchIfMissing = true)
 public class PersonalDataRetentionScheduler {
 
-    private final BookingRepository bookingRepository;
-    private final InquiryRepository inquiryRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final RetentionProperties properties;
+    private final PersonalDataRetentionService retentionService;
 
     @Scheduled(cron = "${app.retention.cron}", zone = "Asia/Seoul")
-    @Transactional
+    @SchedulerLock(
+            name = "personalDataRetention",
+            lockAtLeastFor = "PT30S",
+            lockAtMostFor = "PT10M"
+    )
     public void purgeExpired() {
-        LocalDateTime now = LocalDateTime.now();
+        PersonalDataRetentionService.PurgeResult result =
+                retentionService.purgeExpired(LocalDateTime.now());
 
-        int bookings = purgeBookings(now);
-        int inquiries = purgeInquiries(now);
-        int tokens = purgeRefreshTokens(now);
-
-        if (bookings + inquiries + tokens > 0) {
+        if (result.total() > 0) {
             log.info("개인정보 파기 완료. 예약={}건 문의={}건 리프레시토큰={}건",
-                    bookings, inquiries, tokens);
+                    result.bookings(), result.inquiries(), result.tokens());
         }
-    }
-
-    /** 촬영이 끝난 지 보유기간이 지난 예약. 취소 건도 같은 기준으로 정리합니다. */
-    private int purgeBookings(LocalDateTime now) {
-        LocalDateTime threshold = now.minusDays(properties.bookingDays());
-        return bookingRepository.deleteFinishedBefore(threshold);
-    }
-
-    private int purgeInquiries(LocalDateTime now) {
-        LocalDateTime threshold = now.minusDays(properties.inquiryDays());
-        List<Inquiry> targets = inquiryRepository.findHandledBefore(threshold);
-
-        if (targets.isEmpty()) {
-            return 0;
-        }
-        inquiryRepository.deleteAllInBatch(targets);
-        return targets.size();
-    }
-
-    /**
-     * 만료된 리프레시 토큰은 개인정보는 아니지만 계속 쌓이기만 하는 데이터라
-     * 같은 배치에서 함께 정리합니다.
-     */
-    private int purgeRefreshTokens(LocalDateTime now) {
-        return refreshTokenRepository.deleteExpiredBefore(now);
     }
 }
