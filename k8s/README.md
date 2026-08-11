@@ -14,15 +14,34 @@
 하루 예약 몇 건 규모에 EKS 컨트롤플레인 비용을 상시로 태울 이유가 없습니다.
 매니페스트는 동일하므로 트래픽이 늘면 그대로 EKS 로 옮길 수 있습니다.
 
-## 사전 준비
+## 배포 전 준비물 (직접 하셔야 합니다)
+
+| 항목 | 비고 |
+|---|---|
+| **EC2 인스턴스** | **t3.medium 권장** (2 vCPU / 4GB). t3.small 은 아래 계산 참고 |
+| **도메인** | HTTPS 를 받으려면 필수입니다 |
+| **DNS A 레코드** | 도메인 → EC2 공인 IP. 탄력적 IP 를 붙이세요 |
+| **보안그룹** | 22(SSH), **80**, 443 개방 |
+| SSH 키 | `ssh user@서버` 가 되는 상태 |
+
+**80 을 반드시 열어야 합니다.** Let's Encrypt 가 HTTP-01 챌린지로
+`http://도메인/.well-known/acme-challenge/...` 에 접속해 소유권을 확인합니다.
+443 만 열면 발급이 실패합니다.
+
+**인스턴스 크기** — 파드 요청 합계는 CPU 650m / 메모리 약 1.15Gi 입니다
+(MySQL 512Mi + 백엔드 512Mi + 프론트 2×64Mi). 여기에 k3s 자체가 400~500MB 를 씁니다.
+t3.small(2GB)은 여유가 거의 없어 빌드나 트래픽이 몰리면 OOM 이 납니다.
+
+## 서버 준비 (한 번만)
 
 ```bash
-curl -sfL https://get.k3s.io | sh -
-sudo kubectl get nodes
+scp k8s/bootstrap-server.sh user@서버:~
+ssh user@서버 'sudo bash bootstrap-server.sh'
 ```
 
-k3s 는 Traefik(인그레스)과 local-path(스토리지)를 함께 설치하므로
-추가로 깔 것이 없습니다.
+k3s(Traefik·local-path 포함)와 cert-manager 를 설치합니다.
+cert-manager 는 k3s 에 기본 포함되지 않아 따로 깔아야 하는데,
+없으면 Ingress 의 `cert-manager.io/cluster-issuer` 어노테이션이 조용히 무시됩니다.
 
 ## 1. 이미지 빌드
 
@@ -76,12 +95,56 @@ HTTPS 준비가 안 됐으면 `40-ingress.yaml` 의 `cert-manager.io/cluster-iss
 
 ## 4. 배포
 
+로컬에서 한 줄이면 됩니다. 이미지 빌드 → 서버 전송 → 적용 → 롤아웃 확인까지 합니다.
+
 ```bash
-kubectl apply -f k8s/
-kubectl -n monsterhouse rollout status deploy/backend
+./k8s/deploy.sh user@서버주소
 ```
 
-번호 순서대로 적용됩니다(네임스페이스 → 설정 → DB → 앱 → 인그레스).
+매니페스트만 다시 적용할 때는 빌드를 건너뜁니다.
+
+```bash
+./k8s/deploy.sh user@서버주소 --skip-build
+```
+
+번호 순서대로 적용됩니다(네임스페이스 → 설정 → DB → 앱 → 인그레스 → 인증서).
+
+### HTTPS 발급 순서
+
+**staging 으로 먼저 확인하세요.** Let's Encrypt 운영 서버는 실패 횟수 제한이 강해서
+(같은 도메인 1시간 5회) DNS 나 방화벽 문제로 몇 번 실패하면 한동안 막힙니다.
+
+1. `40-ingress.yaml` 의 `cluster-issuer` 를 `letsencrypt-staging` 으로 바꿔 배포
+2. 발급 성공 확인
+
+   ```bash
+   kubectl -n monsterhouse get certificate     # READY=True 대기
+   kubectl get clusterissuer                   # READY=True 여야 함
+   ```
+3. 성공하면 `letsencrypt-prod` 로 바꾸고 기존 시크릿을 지운 뒤 재발급
+
+   ```bash
+   kubectl -n monsterhouse delete secret monsterhouse-tls
+   kubectl apply -f k8s/40-ingress.yaml
+   ```
+
+staging 인증서는 브라우저가 신뢰하지 않아 경고가 뜹니다 — 그게 정상입니다.
+
+### 인증서가 안 나올 때
+
+```bash
+kubectl get clusterissuer                                  # 여기부터 보세요
+kubectl -n monsterhouse describe certificate monsterhouse-tls
+kubectl -n monsterhouse get challenge
+```
+
+실제로 겪은 것들:
+
+| 증상 | 원인 |
+|---|---|
+| `ClusterIssuer READY=False`, `forbidden domain "example.com"` | `50-cert-manager.yaml` 의 이메일을 안 바꿈 |
+| `challenge` 가 pending 에서 안 넘어감 | 80 포트 차단 또는 DNS 미전파 (`dig +short 도메인` 확인) |
+| `no matches for kind "ClusterIssuer"` | cert-manager 미설치 — `bootstrap-server.sh` 먼저 실행
 
 ## 5. 확인
 
