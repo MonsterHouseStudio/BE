@@ -34,23 +34,67 @@ if [[ ! -d "$FE_DIR" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "--skip-build" ]]; then
-  echo "==> 1/3  이미지 빌드"
-  docker build -t monsterhouse/backend:latest "$BE_DIR"
+  # ★ 아키텍처 확인이 먼저입니다.
+  #   x86 PC 에서 빌드한 이미지를 ARM 서버(Oracle Ampere, AWS Graviton)에 넣으면
+  #   파드가 CrashLoopBackOff 로 돌면서 로그에 "exec format error" 만 남습니다.
+  #   이미지도 정상, 매니페스트도 정상이라 원인을 찾기 어렵습니다.
+  LOCAL_ARCH=$(docker version --format '{{.Server.Arch}}')
+  REMOTE_ARCH=$(ssh "$TARGET" 'uname -m')
+  case "$REMOTE_ARCH" in
+    aarch64|arm64) REMOTE_ARCH=arm64 ;;
+    x86_64|amd64)  REMOTE_ARCH=amd64 ;;
+  esac
+  echo "==> 아키텍처  로컬=$LOCAL_ARCH  서버=$REMOTE_ARCH"
 
-  # ⚠ VITE_* 는 빌드 시점에 번들에 박힙니다.
-  #   여기서 빠뜨리면 운영에 목 데이터가 나갑니다.
-  docker build -t monsterhouse/frontend:latest \
-    --build-arg VITE_USE_MOCK=false \
-    --build-arg VITE_API_BASE_URL=/api \
-    "$FE_DIR"
+  if [[ "$LOCAL_ARCH" == "$REMOTE_ARCH" ]]; then
+    echo "==> 1/3  로컬 빌드"
+    docker build -t monsterhouse/backend:latest "$BE_DIR"
 
-  echo "==> 2/3  이미지 전송 (수 분 걸릴 수 있습니다)"
-  # 파일로 떨구지 않고 파이프로 바로 넘깁니다.
-  for img in backend frontend; do
-    echo "    monsterhouse/$img"
-    docker save "monsterhouse/$img:latest" \
-      | ssh "$TARGET" 'sudo k3s ctr images import -'
-  done
+    # ⚠ VITE_* 는 빌드 시점에 번들에 박힙니다.
+    #   여기서 빠뜨리면 운영에 목 데이터가 나갑니다.
+    docker build -t monsterhouse/frontend:latest \
+      --build-arg VITE_USE_MOCK=false \
+      --build-arg VITE_API_BASE_URL=/api \
+      "$FE_DIR"
+
+    echo "==> 2/3  이미지 전송 (수 분 걸릴 수 있습니다)"
+    # 파일로 떨구지 않고 파이프로 바로 넘깁니다.
+    for img in backend frontend; do
+      echo "    monsterhouse/$img"
+      docker save "monsterhouse/$img:latest" \
+        | ssh "$TARGET" 'sudo k3s ctr images import -'
+    done
+  else
+    # 아키텍처가 다르면 서버에서 직접 빌드합니다.
+    #
+    # buildx + QEMU 에뮬레이션으로 크로스 빌드도 가능하지만,
+    # Gradle 빌드가 에뮬레이션에서 10배 이상 느려집니다(30분 이상).
+    # 소스를 보내 서버에서 네이티브로 빌드하는 편이 훨씬 빠릅니다.
+    echo "==> 1/3  아키텍처가 달라 서버에서 빌드합니다"
+    echo "    서버에 docker 가 필요합니다:  sudo apt install -y docker.io"
+
+    ssh "$TARGET" 'rm -rf ~/mh-src && mkdir -p ~/mh-src'
+    # .git·node_modules·build 산출물은 보내지 않습니다.
+    tar -C "$(dirname "$BE_DIR")" \
+        --exclude='.git' --exclude='node_modules' --exclude='build' \
+        --exclude='dist' --exclude='uploads' --exclude='.gradle' \
+        -czf - "$(basename "$BE_DIR")" "$(basename "$FE_DIR")" \
+      | ssh "$TARGET" 'tar -xzf - -C ~/mh-src'
+
+    echo "==> 2/3  서버에서 빌드 + k3s 에 적재"
+    ssh "$TARGET" "
+      set -e
+      cd ~/mh-src
+      sudo docker build -t monsterhouse/backend:latest ./$(basename "$BE_DIR")
+      sudo docker build -t monsterhouse/frontend:latest \
+        --build-arg VITE_USE_MOCK=false \
+        --build-arg VITE_API_BASE_URL=/api \
+        ./$(basename "$FE_DIR")
+      for img in backend frontend; do
+        sudo docker save monsterhouse/\$img:latest | sudo k3s ctr images import -
+      done
+    "
+  fi
 else
   echo "==> 빌드·전송 건너뜀"
 fi
