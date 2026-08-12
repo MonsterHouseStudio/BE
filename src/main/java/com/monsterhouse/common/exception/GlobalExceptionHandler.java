@@ -6,6 +6,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -92,12 +93,30 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 날짜 락 대기 타임아웃/데드락.
+     * 날짜 락 대기 타임아웃/데드락, 그리고 커넥션 풀 고갈.
      * 실패가 아니라 "잠시 후 재시도" 상황이므로 429 로 안내합니다.
+     *
+     * ★ DataAccessResourceFailureException 이 포함된 이유 (부하 실험에서 발견)
+     *   동시 50건을 넣었더니 실패 147건 중 127건이 커넥션 풀 고갈이었습니다.
+     *   예약 스레드는 커넥션을 먼저 잡고 그 다음 날짜 락을 기다리는데,
+     *   날짜 락이 요청을 직렬화하므로 대기하는 동안에도 커넥션을 계속 물고 있습니다.
+     *   동시 요청이 풀 크기를 넘으면 나머지는 커넥션조차 못 받고 타임아웃됩니다.
+     *
+     *   이 예외를 빠뜨리면 catch-all 로 떨어져 "서버 오류(500)" 가 나갑니다.
+     *   실제로는 서버가 고장난 게 아니라 잠깐 붐비는 것이므로 429 가 맞습니다.
+     *   500 은 사용자가 재시도할 이유를 못 느끼게 만들고, 모니터링에서도
+     *   진짜 장애와 구분되지 않습니다.
+     *
+     *   (HikariCP 의 SQLTransientConnectionException 은 Spring 이
+     *    CannotGetJdbcConnectionException → DataAccessResourceFailureException 으로 감쌉니다)
      */
-    @ExceptionHandler({CannotAcquireLockException.class, PessimisticLockingFailureException.class})
-    public ResponseEntity<ApiResponse<Void>> handleLockFailure(Exception e) {
-        log.warn("Lock acquisition failed", e);
+    @ExceptionHandler({
+            CannotAcquireLockException.class,
+            PessimisticLockingFailureException.class,
+            DataAccessResourceFailureException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleOverload(Exception e) {
+        log.warn("Overload or lock failure: {}", e.getClass().getSimpleName(), e);
         return toResponse(ErrorCode.TOO_MANY_REQUESTS);
     }
 
