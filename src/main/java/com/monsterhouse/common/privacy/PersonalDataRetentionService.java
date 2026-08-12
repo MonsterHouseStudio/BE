@@ -5,6 +5,7 @@ import com.monsterhouse.booking.repository.BookingRepository;
 import com.monsterhouse.common.config.RetentionProperties;
 import com.monsterhouse.inquiry.entity.Inquiry;
 import com.monsterhouse.inquiry.repository.InquiryRepository;
+import com.monsterhouse.notification.repository.NotificationOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,11 +31,12 @@ public class PersonalDataRetentionService {
     private final BookingRepository bookingRepository;
     private final InquiryRepository inquiryRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final NotificationOutboxRepository outboxRepository;
     private final RetentionProperties properties;
 
-    public record PurgeResult(int bookings, int inquiries, int tokens) {
+    public record PurgeResult(int bookings, int inquiries, int tokens, int notifications) {
         public int total() {
-            return bookings + inquiries + tokens;
+            return bookings + inquiries + tokens + notifications;
         }
     }
 
@@ -43,7 +45,8 @@ public class PersonalDataRetentionService {
         return new PurgeResult(
                 purgeBookings(now),
                 purgeInquiries(now),
-                purgeRefreshTokens(now)
+                purgeRefreshTokens(now),
+                purgeSentNotifications(now)
         );
     }
 
@@ -70,5 +73,8 @@ public class PersonalDataRetentionService {
      */
     private int purgeRefreshTokens(LocalDateTime now) {
         return refreshTokenRepository.deleteExpiredBefore(now);
+    }
+    private int purgeSentNotifications(LocalDateTime now){
+        return outboxRepository.deleteSentBefore(now.minusDays(30));
     }
 }

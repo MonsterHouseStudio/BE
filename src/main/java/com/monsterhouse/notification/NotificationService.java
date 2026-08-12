@@ -21,36 +21,33 @@ import java.util.Map;
 @Service
 public class NotificationService {
 
-    private final Map<NotificationChannel, NotificationSender> senders =
-            new EnumMap<>(NotificationChannel.class);
-
-    public NotificationService(List<NotificationSender> senderList) {
+    private final Map<NotificationChannel, NotificationSender> senders = new EnumMap<>(NotificationChannel.class);
+    private final OutboxRecorder outboxRecorder;
+    public NotificationService(List<NotificationSender> senderList, OutboxRecorder outboxRecorder){
         senderList.forEach(sender -> senders.put(sender.channel(), sender));
+        this.outboxRecorder = outboxRecorder;
     }
-
-    public void send(NotificationChannel channel, NotificationMessage message) {
+    public void send(NotificationChannel channel, NotificationMessage message){
         NotificationSender sender = senders.get(channel);
-
-        if (sender == null) {
+        if(sender == null){
             log.warn("No sender registered for channel {}", channel);
             return;
         }
-
-        if (!sender.isEnabled()) {
+        if(!sender.isEnabled()){
             log.info("[{} disabled] subject={} body={}", channel, message.subject(), message.body());
             return;
         }
-
-        try {
+        Long outboxId = outboxRecorder.record(channel, message);
+        try{
             sender.send(message);
-        } catch (Exception e) {
-            // TODO Phase 5: 실패 건을 notification_failure 테이블에 적재 후 배치 재발송
-            log.error("Notification failed. channel={} subject={}", channel, message.subject(), e);
+            outboxRecorder.markSent(outboxId);
+        }catch(Exception e){
+            log.error("Notification failed, will retry. channel={} outboxId={} subject={}",
+                    channel, outboxId, message.subject(), e);
+            outboxRecorder.markFailed(outboxId, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
-
-    /** 관리자 알림 이중화 — LINE 이 죽어도 메일은 갑니다 (§5.4 권장 구성). */
-    public void notifyAdmin(String subject, String body) {
+    public void notifyAdmin(String subject, String body){
         send(NotificationChannel.LINE, NotificationMessage.toDefaultRecipient(subject, body));
         send(NotificationChannel.MAIL, NotificationMessage.toDefaultRecipient(subject, body));
     }

@@ -215,6 +215,14 @@ app:
     cache-ttl-minutes: 60
     max-results: 3
 
+  notification:
+    retry:
+      # 발송 실패한 알림을 재시도합니다 (지수 백오프 1→2→4→8분, 5회 후 포기).
+      enabled: ${NOTIFICATION_RETRY_ENABLED:true}
+      # 배치 간격. 너무 짧으면 죽어 있는 외부 API 를 계속 때리고,
+      # 너무 길면 사장님이 예약 알림을 늦게 받습니다.
+      interval-ms: ${NOTIFICATION_RETRY_INTERVAL_MS:60000}
+
   # 개인정보 보유기간 (기획서 §9). 지나면 자동 파기합니다.
   retention:
     enabled: true
