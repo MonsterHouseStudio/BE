@@ -19,6 +19,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -79,6 +80,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception e) {
         log.info("Bad request: {}", e.getMessage());
         return toResponse(ErrorCode.INVALID_INPUT);
+    }
+
+    /**
+     * 업로드 파일이 multipart 상한을 넘었을 때.
+     *
+     * ★ 이 핸들러가 없으면 catch-all 로 떨어져 500 이 나갑니다.
+     *   서블릿 컨테이너가 본문을 다 읽기 전에 끊어버리므로
+     *   VideoUploadService 의 크기 검사(친절한 메시지)까지 도달하지 못합니다.
+     *   사장님 입장에서는 "큰 영상을 올렸더니 서버가 고장났다"로 보입니다.
+     *
+     *   그래서 application.yml 의 multipart 상한을 app.storage 의 상한보다
+     *   일부러 크게 잡아두었습니다. 정상 범위에서는 서비스 검사가 먼저 걸리고,
+     *   그마저 넘는 비정상 크기만 여기로 옵니다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge(MaxUploadSizeExceededException e) {
+        log.info("Upload rejected, exceeds multipart limit: {}", e.getMessage());
+        return toResponse(ErrorCode.FILE_TOO_LARGE_VIDEO);
     }
 
     /**

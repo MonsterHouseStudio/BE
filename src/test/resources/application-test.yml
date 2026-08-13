@@ -67,6 +67,8 @@ app:
     max-image-bytes: 20971520
     medium-width: 1600
     thumb-width: 480
+    # 없으면 0 으로 바인딩되어 모든 영상이 거부됩니다.
+    max-video-bytes: 20971520
 
   notification:
     retry:

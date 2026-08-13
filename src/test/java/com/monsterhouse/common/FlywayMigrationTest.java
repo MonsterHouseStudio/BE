@@ -57,14 +57,19 @@ class FlywayMigrationTest {
 
     @Test
     @DisplayName("모든 마이그레이션이 성공적으로 적용된다")
-    void allMigrationsApplied() {
+    void allMigrationsApplied() throws Exception {
         List<String> versions = jdbcTemplate.queryForList("""
                 select version from flyway_schema_history
                 where success = 1 and type = 'SQL'
                 order by installed_rank
                 """, String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3");
+        // ★ 하드코딩하지 않습니다.
+        //   V4 를 추가할 때마다 이 테스트를 같이 고쳐야 한다면, 바쁠 때 그냥 숫자만
+        //   늘리고 넘어가게 됩니다. 그 순간 이 단언은 아무것도 지키지 못합니다.
+        //   파일에서 기대값을 뽑으면 "파일은 있는데 적용 안 됨"과
+        //   "적용됐는데 파일이 없음"을 둘 다 잡습니다.
+        assertThat(versions).containsExactlyElementsOf(migrationVersionsOnClasspath());
     }
 
     @Test
@@ -128,6 +133,19 @@ class FlywayMigrationTest {
         String collation = jdbcTemplate.queryForObject(
                 "select @@collation_database", String.class);
         assertThat(collation).startsWith("utf8mb4");
+    }
+
+    /** db/migration 의 V*__*.sql 에서 버전 번호를 오름차순으로 뽑습니다. */
+    private List<String> migrationVersionsOnClasspath() throws Exception {
+        Resource[] files = new PathMatchingResourcePatternResolver()
+                .getResources("classpath:db/migration/V*__*.sql");
+
+        return java.util.Arrays.stream(files)
+                .map(Resource::getFilename)
+                .filter(java.util.Objects::nonNull)
+                .map(name -> name.substring(1, name.indexOf("__")))
+                .sorted(java.util.Comparator.comparingInt(Integer::parseInt))
+                .toList();
     }
 
     private boolean tableExists(String table) {

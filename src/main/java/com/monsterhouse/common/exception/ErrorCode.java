@@ -44,7 +44,9 @@ public enum ErrorCode {
 
     // ===== 문의 =====
     INQUIRY_NOT_FOUND("I001", HttpStatus.NOT_FOUND, "error.inquiry.not.found"),
-
+    BANNER_NOT_FOUND("N001", HttpStatus.NOT_FOUND, "error.banner.not.found"),
+    FILE_TOO_LARGE_VIDEO("N002", HttpStatus.BAD_REQUEST, "error.file.video.too.large"),
+    UNSUPPORTED_VIDEO("N003", HttpStatus.BAD_REQUEST, "error.file.video.unsupported"),
     // ===== 관리자 =====
     INVALID_CREDENTIALS("A001", HttpStatus.UNAUTHORIZED, "error.auth.invalid.credentials"),
     TOKEN_EXPIRED("A002", HttpStatus.UNAUTHORIZED, "error.auth.token.expired"),

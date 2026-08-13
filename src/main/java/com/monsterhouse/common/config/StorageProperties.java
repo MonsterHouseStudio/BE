@@ -13,7 +13,8 @@ public record StorageProperties(
         int presignExpireMinutes,
         long maxImageBytes,
         int mediumWidth,
-        int thumbWidth
+        int thumbWidth,
+        long maxVideoBytes
 ) {
 
     public boolean isS3() {

@@ -64,7 +64,11 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 20MB
+      # app.storage 의 상한(이미지 20MB / 영상 20MB)보다 일부러 크게 잡습니다.
+      # 여기서 먼저 걸리면 서블릿이 본문을 끊어버려 서비스의 친절한 메시지
+      # ("20MB 이하로 올려주세요")까지 도달하지 못하고, MaxUploadSizeExceededException
+      # 만 남습니다. 정상 범위는 서비스가 걸러내고, 비정상 크기만 여기서 막습니다.
+      max-file-size: 30MB
       max-request-size: 100MB
 
   jackson:
@@ -208,6 +212,9 @@ app:
     # 리사이즈 산출물 크기 (기획서 §6.2 — 썸네일/중간/원본 3종)
     medium-width: 1600
     thumb-width: 480
+    # 배너 배경 영상 상한. 서버에서 인코딩하지 않으므로 그대로 저장됩니다.
+    # 20MB 를 넘기면 모바일 사용자가 첫 화면 하나에 데이터를 많이 씁니다.
+    max-video-bytes: 20971520      # 20MB
 
   youtube:
     api-key: ${YOUTUBE_API_KEY:}
