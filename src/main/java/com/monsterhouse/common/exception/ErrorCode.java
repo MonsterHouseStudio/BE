@@ -62,8 +62,9 @@ public enum ErrorCode {
     // ===== 관리자 계정 =====
     DUPLICATE_USERNAME("A006", HttpStatus.CONFLICT, "error.auth.duplicate.username"),
     SAME_PASSWORD("A007", HttpStatus.BAD_REQUEST, "error.auth.same.password"),
-    CANNOT_DISABLE_SELF("A008", HttpStatus.BAD_REQUEST, "error.auth.cannot.disable.self");
+    CANNOT_DISABLE_SELF("A008", HttpStatus.BAD_REQUEST, "error.auth.cannot.disable.self"),
 
+    BANNER_POSTER_REQUIRED("N004", HttpStatus.BAD_REQUEST, "error.banner.poster.required");
     private final String code;
     private final HttpStatus status;
     private final String messageKey;
