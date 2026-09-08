@@ -36,6 +36,13 @@ logging:
       total-size-cap: 2GB
 
 app:
+  # ⚠ CORS 는 반드시 정확한 오리진으로 주입하세요.
+  #   allowCredentials(true) 를 쓰므로 "*" 나 "https://*" 처럼 모든 오리진을
+  #   반영하는 값이 들어오면 자격증명이 탈취됩니다. 서버는 그런 값이 들어오면
+  #   기동을 거부합니다(CorsProperties 검증). 서브도메인 와일드카드는 허용됩니다.
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://monsterhouse.example.com}
+
   jwt:
     # HTTPS 전제. Secure 를 끄면 리프레시 쿠키가 평문으로 오갑니다.
     cookie-secure: true

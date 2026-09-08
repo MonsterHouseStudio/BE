@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 /**
  * 일반 사용자는 비회원(기획서 §4.2) → 공개 API 는 인증 없음.
@@ -47,6 +48,21 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+                // --- 보안 헤더 ---
+                // 순수 JSON API 라 CSP 는 "아무 리소스도 로드하지 않는다"로 잠급니다.
+                // 이미지/HTML 을 직접 렌더링하지 않으므로 default-src 'none' 이 안전합니다.
+                // HSTS 는 HTTPS 응답에만 붙습니다(로컬 HTTP 개발은 영향 없음).
+                // X-Content-Type-Options(nosniff)·X-Frame-Options(DENY)는 Spring 기본 제공.
+                .headers(headers -> headers
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31_536_000))   // 1년
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                        .referrerPolicy(referrer -> referrer
+                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                )
+
                 .authorizeHttpRequests(auth -> auth
                         // --- 관리자 인증 진입점 (토큰 없이 접근 가능해야 함) ---
                         .requestMatchers(HttpMethod.POST,
@@ -58,6 +74,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").authenticated()
 
                         // --- 공개 API ---
+                        // ⚠ 지뢰: 모든 관리자 GET 은 반드시 /api/admin/** 안에 두세요.
+                        //   그 밖(예: /api/dashboard)에 관리자 GET 을 만들면 이 줄에 걸려 즉시 공개됩니다.
                         .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
                         // 비회원 예약이라 로그인이 없습니다. 본인 확인은
                         // "예약번호 + 이메일 일치"를 각 서비스 메서드가 직접 합니다.
