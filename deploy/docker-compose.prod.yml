@@ -26,6 +26,9 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --default-time-zone=+09:00
+      # 4GB 서버에서 버퍼풀을 적당히. 데이터가 커지면 이 값을 올리세요.
+      - --innodb-buffer-pool-size=512M
+    mem_limit: 1g          # MySQL 이 쓸 수 있는 메모리 상한
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -40,6 +43,10 @@ services:
     build:
       context: ..          # BE 저장소 루트 (Dockerfile 위치)
     restart: unless-stopped
+    # ⚠ JVM 은 기본적으로 "호스트" 메모리의 75% 를 잡으려 합니다(Dockerfile 의 MaxRAMPercentage).
+    #    제한이 없으면 4GB 서버에서 JVM 이 3GB 를 먹어 MySQL 이 굶습니다.
+    #    이 상한(1.5GB) 안에서 힙이 ~1.1GB 로 잡혀 MySQL·OS 와 나눠 씁니다.
+    mem_limit: 1536m
     depends_on:
       mysql:
         condition: service_healthy
