@@ -7,21 +7,21 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 개발용 초기 관리자 계정.
+ * 초기 관리자 계정 시드.
  *
- * @Profile("local") 을 반드시 유지하세요.
- * 운영에 이게 살아 있으면 아이디·비밀번호가 알려진 계정이 자동 생성됩니다.
- * 운영 계정은 배포 후 수동 생성하거나 별도 마이그레이션으로 넣습니다.
+ * 기본은 꺼짐입니다(app.admin.seed 미설정 시 seedEnabled()=false).
+ * - local 프로필: local yml 이 seed 를 켜서 개발용 계정(admin/admin1234!)을 만듭니다.
+ * - 운영: 최초 1회만 APP_ADMIN_SEED_ENABLED=true + 강한 비밀번호로 계정을 만들고,
+ *   로그인 후 다시 false 로 끕니다. 이미 있으면 재생성하지 않습니다(멱등).
+ * ⚠ 운영에서 개발용 비밀번호(admin1234!)를 쓰지 마세요 — 반드시 강한 값으로.
  */
 @Slf4j
 @Component
-@Profile("local")
 @RequiredArgsConstructor
 public class AdminAccountInitializer implements ApplicationRunner{
     private final AdminUserRepository adminUserRepository;
@@ -43,6 +43,6 @@ public class AdminAccountInitializer implements ApplicationRunner{
                 .displayName("운영자")
                 .role(AdminRole.SUPER_ADMIN)
                 .build());
-        log.warn("[local] 초기 관리자 계정을 생성했습니다. username={} - 운영에서는 절대 사용 금지", username);
+        log.warn("초기 관리자 계정을 생성했습니다. username={} — 로그인 후 시드를 끄세요(APP_ADMIN_SEED_ENABLED=false).", username);
     }
 }
