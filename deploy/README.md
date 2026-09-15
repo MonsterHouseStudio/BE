@@ -1,10 +1,14 @@
-# 배포 (가비아 g클라우드 · VPS 1대)
+# 배포 (카페24 VPS · Docker Compose + Caddy)
 
-VPS 한 대에 Docker Compose 로 **MySQL + Backend + Frontend + Caddy(자동 HTTPS)** 를 올립니다.
+VPS 한 대(카페24 가상서버)에 Docker Compose 로
+**MySQL + Backend + Frontend + Caddy(자동 HTTPS)** 를 올립니다.
 같은 도메인에서 화면과 API 를 함께 내보내므로 CORS 문제가 없습니다.
 
+> 서버는 **카페24**, 도메인·DNS 는 **가비아** 에 그대로 둡니다.
+> 배포 구성은 우분투 서버면 어느 호스팅이든 동일하게 동작합니다.
+
 ```
-가비아 도메인 → VPS 공인 IP
+가비아 도메인(monsterhouse.co.kr) → 카페24 서버 IP
    └ Caddy :443 (자동 HTTPS)
         ├ /api·/uploads → Backend :8080
         └ 그 외          → Frontend (nginx)
@@ -15,11 +19,14 @@ VPS 한 대에 Docker Compose 로 **MySQL + Backend + Frontend + Caddy(자동 HT
 
 ## 0. 서버·도메인 준비 (사장님)
 
-1. **가비아 g클라우드 서버** 생성 — Ubuntu 22.04, **RAM 4GB**, 디스크 40GB+.
-   ⚠ "웹호스팅" 이 아니라 **"클라우드 서버(g클라우드)"** 여야 합니다.
-2. **가비아 DNS 관리** → `monsterhouse.co.kr` 와 `www` 의 **A레코드**를 서버 공인 IP 로.
+가이드: `deploy/SERVER-SETUP-CAFE24.md` (사장님용 · PDF 전달본)
+
+1. **카페24 가상서버(VPS)** 생성 — Ubuntu 22.04, **RAM 4GB**, 디스크 50GB+.
+   ⚠ "웹호스팅" 이 아니라 **"가상서버호스팅 / 클라우드 서버"** 여야 합니다.
+2. **가비아 DNS 관리**(도메인은 가비아에 있음) → `monsterhouse.co.kr` 와 `www` 의
+   **A레코드**를 **카페24 서버 IP** 로.
    (전파에 몇 분~수십 분. Caddy 인증서 발급 전에 반드시 완료되어야 함)
-3. 서버 방화벽/보안그룹: **22(SSH) · 80 · 443** 만 개방.
+3. 서버 방화벽: **22(SSH) · 80 · 443** 만 개방 (카페24는 기본 개방된 경우가 많음).
 
 ## 1. 서버 기본 세팅 (최초 1회)
 
