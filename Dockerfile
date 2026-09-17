@@ -34,6 +34,11 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Duser.timezon
 RUN groupadd -r -g 10001 app && useradd -r -u 10001 -g app app
 COPY --from=builder /workspace/build/libs/*.jar app.jar
 RUN chown 10001:10001 app.jar
+# 업로드 디렉터리를 app(10001) 소유로 미리 만들어 둡니다.
+# 빈 named volume 을 여기 마운트하면 Docker 가 이 소유권을 볼륨에 복사하므로,
+# 비루트(10001) 로 도는 백엔드가 하위 폴더(banner/ 등)를 만들 수 있습니다.
+# (없으면 볼륨이 root 소유로 잡혀 업로드 시 AccessDeniedException)
+RUN mkdir -p /app/uploads && chown -R 10001:10001 /app/uploads
 USER 10001
 
 EXPOSE 8080
