@@ -26,7 +26,7 @@ public record AdminProductResponse(
         boolean bookable,
         String noteKo,
         String noteJa,
-        List<ProductOptionResponse> options,
+        List<AdminProductOptionResponse> options,
         boolean translated
 ) {
     public static AdminProductResponse of(Product product){
@@ -53,7 +53,7 @@ public record AdminProductResponse(
                 product.getNoteJa(),
                 product.getOptions().stream()
                         .sorted(java.util.Comparator.comparingInt(ProductOption::getSortOrder))
-                        .map(o -> ProductOptionResponse.of(o, LocaleCode.KO))
+                        .map(AdminProductOptionResponse::of)
                         .toList(),
                 translated
         );
