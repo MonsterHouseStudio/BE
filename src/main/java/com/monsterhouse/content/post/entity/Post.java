@@ -45,6 +45,11 @@ public class Post extends BaseTimeEntity {
     @Column(name = "slug", nullable = false, length = 120)
     private String slug;
 
+    /** 콘텐츠 종류(글/SNS). 종류에 따라 유효 필드가 달라집니다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, length = 20)
+    private PostKind kind;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false, length = 20)
     private PostCategory category;
@@ -52,6 +57,10 @@ public class Post extends BaseTimeEntity {
     /** 스토리지 키. URL 이 아니라 키를 저장해야 CDN 도메인이 바뀌어도 데이터가 안 썩습니다. */
     @Column(name = "thumbnail_key", length = 300)
     private String thumbnailKey;
+
+    /** SNS 종류 전용 — 유튜브 등 외부 링크. ARTICLE 은 null. */
+    @Column(name = "link_url", length = 500)
+    private String linkUrl;
 
     @Column(name = "published", nullable = false)
     private boolean published;
@@ -66,10 +75,13 @@ public class Post extends BaseTimeEntity {
     private List<PostTranslation> translations = new ArrayList<>();
 
     @Builder
-    private Post(String slug, PostCategory category, String thumbnailKey, boolean published) {
+    private Post(String slug, PostKind kind, PostCategory category,
+                String thumbnailKey, String linkUrl, boolean published) {
         this.slug = slug;
+        this.kind = kind == null ? PostKind.ARTICLE : kind;
         this.category = category;
         this.thumbnailKey = thumbnailKey;
+        this.linkUrl = linkUrl;
         this.published = published;
         this.viewCount = 0L;
         if (published) {
@@ -77,10 +89,13 @@ public class Post extends BaseTimeEntity {
         }
     }
 
-    public void update(String slug, PostCategory category, String thumbnailKey, boolean published) {
+    public void update(String slug, PostKind kind, PostCategory category,
+                       String thumbnailKey, String linkUrl, boolean published) {
         this.slug = slug;
+        this.kind = kind == null ? PostKind.ARTICLE : kind;
         this.category = category;
         this.thumbnailKey = thumbnailKey;
+        this.linkUrl = linkUrl;
 
         // 최초 공개 시점만 기록합니다. 수정할 때마다 갱신하면
         // 목록 정렬이 흔들려 오래된 글이 갑자기 맨 위로 올라옵니다.

@@ -9,6 +9,7 @@ import com.monsterhouse.content.post.dto.PostSaveRequest;
 import com.monsterhouse.content.post.dto.PostSummaryResponse;
 import com.monsterhouse.content.post.entity.Post;
 import com.monsterhouse.content.post.entity.PostCategory;
+import com.monsterhouse.content.post.entity.PostKind;
 import com.monsterhouse.content.post.repository.PostRepository;
 import com.monsterhouse.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
@@ -67,14 +68,17 @@ public class PostService {
 
     @Transactional
     public AdminPostResponse create(PostSaveRequest request) {
+        validateKind(request);
         if (postRepository.existsBySlug(request.slug())) {
             throw new BusinessException(ErrorCode.DUPLICATE_SLUG);
         }
 
         Post post = Post.builder()
                 .slug(request.slug())
+                .kind(request.kind())
                 .category(request.category())
                 .thumbnailKey(request.thumbnailKey())
+                .linkUrl(request.kind() == PostKind.SNS ? request.linkUrl() : null)
                 .published(request.published())
                 .build();
 
@@ -88,6 +92,7 @@ public class PostService {
 
     @Transactional
     public AdminPostResponse update(Long id, PostSaveRequest request) {
+        validateKind(request);
         Post post = getOrThrow(id);
 
         if (postRepository.existsBySlugAndIdNot(request.slug(), id)) {
@@ -98,7 +103,8 @@ public class PostService {
         String previousKey = post.getThumbnailKey();
         boolean thumbnailChanged = previousKey != null && !previousKey.equals(request.thumbnailKey());
 
-        post.update(request.slug(), request.category(), request.thumbnailKey(), request.published());
+        post.update(request.slug(), request.kind(), request.category(), request.thumbnailKey(),
+                request.kind() == PostKind.SNS ? request.linkUrl() : null, request.published());
         applyTranslations(post, request);
 
         if (thumbnailChanged) {
@@ -119,14 +125,36 @@ public class PostService {
 
     // ===================== 내부 =====================
 
+    /**
+     * 종류별 필수 필드 교차검증.
+     * - SNS   : 외부 링크(linkUrl) 필수. 본문은 없어도 됨.
+     * - ARTICLE: 각 번역의 본문(body) 필수.
+     * (bean validation 은 종류를 모르므로 여기서 판단합니다.)
+     */
+    private void validateKind(PostSaveRequest request) {
+        if (request.kind() == PostKind.SNS) {
+            if (request.linkUrl() == null || request.linkUrl().isBlank()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT);
+            }
+        } else {
+            boolean anyBodyBlank = request.translations().stream()
+                    .anyMatch(t -> t.body() == null || t.body().isBlank());
+            if (anyBodyBlank) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT);
+            }
+        }
+    }
+
     private void applyTranslations(Post post, PostSaveRequest request) {
         for (LocaleCode locale : LocaleCode.values()) {
             request.translations().stream()
                     .filter(t -> t.locale() == locale)
                     .findFirst()
                     .ifPresentOrElse(
+                            // body 는 NOT NULL 컬럼입니다. SNS 는 본문이 없으므로 빈 문자열로 저장합니다.
                             t -> post.putTranslation(
-                                    locale, t.series(), t.title(), t.excerpt(), t.body()),
+                                    locale, t.series(), t.title(), t.excerpt(),
+                                    t.body() == null ? "" : t.body()),
                             () -> post.removeTranslation(locale)
                     );
         }

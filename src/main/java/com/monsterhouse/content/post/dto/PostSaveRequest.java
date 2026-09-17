@@ -2,6 +2,7 @@ package com.monsterhouse.content.post.dto;
 
 import com.monsterhouse.common.enums.LocaleCode;
 import com.monsterhouse.content.post.entity.PostCategory;
+import com.monsterhouse.content.post.entity.PostKind;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
@@ -16,12 +17,20 @@ public record PostSaveRequest(
                 message = "slug 는 영문 소문자, 숫자, 하이픈만 사용할 수 있습니다.")
         String slug,
 
+        /** 글(ARTICLE) / SNS. 종류별 필수 필드는 서비스에서 교차검증합니다. */
+        @NotNull
+        PostKind kind,
+
         @NotNull
         PostCategory category,
 
         /** 업로드 API 가 돌려준 thumbKey 또는 mediumKey */
         @Size(max = 300)
         String thumbnailKey,
+
+        /** SNS 전용 외부 링크(유튜브 등). ARTICLE 이면 무시됩니다. */
+        @Size(max = 500)
+        String linkUrl,
 
         boolean published,
 
@@ -45,7 +54,7 @@ public record PostSaveRequest(
             @Size(max = 500)
             String excerpt,
 
-            @NotBlank
+            /** ARTICLE 은 필수(서비스에서 검증), SNS 는 비워둡니다. */
             String body
     ) {
     }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.monsterhouse.common.enums.LocaleCode;
 import com.monsterhouse.content.post.entity.Post;
 import com.monsterhouse.content.post.entity.PostCategory;
+import com.monsterhouse.content.post.entity.PostKind;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -12,9 +13,11 @@ import java.util.List;
 public record AdminPostResponse(
         Long id,
         String slug,
+        PostKind kind,
         PostCategory category,
         String thumbnailKey,
         String thumbnailUrl,
+        String linkUrl,
         boolean published,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -39,9 +42,11 @@ public record AdminPostResponse(
         return new AdminPostResponse(
                 post.getId(),
                 post.getSlug(),
+                post.getKind(),
                 post.getCategory(),
                 post.getThumbnailKey(),
                 thumbnailUrl,
+                post.getLinkUrl(),
                 post.isPublished(),
                 post.getPublishedAt(),
                 post.getViewCount(),

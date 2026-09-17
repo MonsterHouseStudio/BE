@@ -103,7 +103,7 @@ public class DevContentInitializer implements ApplicationRunner {
 
         Post p1 = Post.builder()
                 .slug("junyoung-week-01")
-                .category(PostCategory.MEDIA)
+                .category(PostCategory.CREW)
                 .published(true)
                 .build();
         p1.putTranslation(LocaleCode.KO, "준영의 첫 시합", "첫 대회를 신청했다",
@@ -121,7 +121,7 @@ public class DevContentInitializer implements ApplicationRunner {
         // ★ 일본어 번역 없음 — /ja/media 에서 이 글이 안 보여야 정상입니다.
         Post p2 = Post.builder()
                 .slug("junyoung-week-04")
-                .category(PostCategory.MEDIA)
+                .category(PostCategory.CREW)
                 .published(true)
                 .build();
         p2.putTranslation(LocaleCode.KO, "준영의 첫 시합", "4주차, 거울이 거짓말을 한다",
@@ -133,7 +133,7 @@ public class DevContentInitializer implements ApplicationRunner {
 
         Post p3 = Post.builder()
                 .slug("osaka-expedition")
-                .category(PostCategory.MEDIA)
+                .category(PostCategory.CREW)
                 .published(true)
                 .build();
         p3.putTranslation(LocaleCode.KO, "원정", "오사카 원정기 — 언어가 무대를 막을 때",
