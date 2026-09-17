@@ -73,3 +73,28 @@ jobs:
       #   그건 실제로 배포해봐야 나옵니다.
       - name: Dockerfile 검증
         run: docker build -t monsterhouse/backend:ci .
+
+  deploy:
+    name: 서버 배포
+    runs-on: ubuntu-latest
+    # 빌드·테스트·이미지가 모두 통과해야 배포합니다.
+    needs: [build, docker]
+    # main 에 push 되고, 저장소 변수 DEPLOY=true 일 때만 실제 배포합니다.
+    # (변수를 켜기 전까지 이 잡은 건너뜁니다 — 시크릿 준비 전 빨간 실패 방지)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY == 'true'
+    # 같은 저장소에서 배포가 겹치지 않게(서버 쪽 flock 이 저장소 간 겹침까지 막습니다).
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      # SSH 로 서버에 접속해 deploy.sh 실행(git pull + 재빌드 + 무중단 교체).
+      - name: SSH 배포
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd /opt/monsterhouse/BE/deploy
+            ./deploy.sh
