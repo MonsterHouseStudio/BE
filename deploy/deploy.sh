@@ -18,9 +18,11 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-echo "▶ 최신 코드 받기 (BE·FE)"
-git -C ..    pull --ff-only
-git -C ../../FE pull --ff-only
+echo "▶ 최신 코드 받기 (BE·FE) — 배포 서버는 항상 원격과 일치시킵니다"
+# 서버는 편집하는 곳이 아니므로 로컬 변경(모드·우발적 수정)은 버리고 origin/main 으로 강제 정렬합니다.
+# (git pull --ff-only 는 서버에 사소한 로컬 변경만 있어도 실패해 배포가 멈춥니다)
+git -C ..      fetch --quiet origin main && git -C ..      reset --hard --quiet origin/main
+git -C ../../FE fetch --quiet origin main && git -C ../../FE reset --hard --quiet origin/main
 
 echo "▶ 빌드 + 기동 (MySQL → Backend → Frontend → Caddy)"
 docker compose -f docker-compose.prod.yml --env-file .env up -d --build
