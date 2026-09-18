@@ -7,6 +7,8 @@ import com.monsterhouse.content.competition.repository.CompetitionRepository;
 import com.monsterhouse.content.post.entity.Post;
 import com.monsterhouse.content.post.entity.PostCategory;
 import com.monsterhouse.content.post.repository.PostRepository;
+import com.monsterhouse.content.stat.entity.HomeStat;
+import com.monsterhouse.content.stat.repository.HomeStatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -37,12 +39,41 @@ public class DevContentInitializer implements ApplicationRunner {
 
     private final CompetitionRepository competitionRepository;
     private final PostRepository postRepository;
+    private final HomeStatRepository homeStatRepository;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
         seedCompetitions();
         seedPosts();
+        seedHomeStats();
+    }
+
+    /** 로컬은 Flyway 를 쓰지 않으므로 홈 통계 기본 4개를 여기서 시드합니다(운영은 V6 마이그레이션). */
+    private void seedHomeStats() {
+        if (homeStatRepository.count() > 0) {
+            return;
+        }
+        homeStatRepository.save(HomeStat.builder().valueNumber(480).suffix("+")
+                .labelKo("누적 촬영").labelJa("累計撮影")
+                .descKo("무대 뒤부터 결과물까지, 그동안 쌓아 올린 촬영의 기록입니다.")
+                .descJa("舞台裏から仕上がりまで、積み重ねてきた撮影の記録です。")
+                .active(true).sortOrder(0).build());
+        homeStatRepository.save(HomeStat.builder().valueNumber(120).suffix("+")
+                .labelKo("함께한 선수").labelJa("共に歩んだ選手")
+                .descKo("한 무대를 위해 함께 준비한 선수들의 숫자입니다.")
+                .descJa("一つの舞台のために共に準備した選手の数です。")
+                .active(true).sortOrder(1).build());
+        homeStatRepository.save(HomeStat.builder().valueNumber(4).suffix("")
+                .labelKo("운영 연차").labelJa("運営年数")
+                .descKo("현장에서 쌓아 온 시간이 곧 이해의 깊이가 됩니다.")
+                .descJa("現場で積み重ねた時間が、そのまま理解の深さになります。")
+                .active(true).sortOrder(2).build());
+        homeStatRepository.save(HomeStat.builder().valueText("KR · JP")
+                .labelKo("한국·일본").labelJa("韓国・日本")
+                .descKo("한국과 일본, 두 무대를 잇는 촬영과 통역을 합니다.")
+                .descJa("韓国と日本、二つの舞台をつなぐ撮影と通訳を行います。")
+                .active(true).sortOrder(3).build());
     }
 
     private void seedCompetitions() {
