@@ -40,6 +40,10 @@ public record ProductSaveRequest(
         String noteKo,
 
         @Size(max = 300)
-        String noteJa
+        String noteJa,
+
+        /** 상품 대표 이미지 키(업로드 후 받은 mediumKey). 없으면 이미지 없음. */
+        @Size(max = 300)
+        String imageKey
 ) {
 }

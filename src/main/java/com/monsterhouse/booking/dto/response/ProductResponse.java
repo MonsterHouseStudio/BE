@@ -22,13 +22,15 @@ public record ProductResponse(
         boolean bookable,
         /** "* 사진촬영 별도" 처럼 가격 옆에 붙는 단서 */
         String note,
+        /** 상품 대표 이미지 URL(없으면 null) */
+        String imageUrl,
         /** 프론트 ShootingPage 의 "포함 사항" 목록 */
         List<String> includes,
         /** 추가 옵션 (보정본 추가 등) */
         List<ProductOptionResponse> options
 ) {
 
-    public static ProductResponse of(Product product, LocaleCode locale) {
+    public static ProductResponse of(Product product, LocaleCode locale, String imageUrl) {
         return new ProductResponse(
                 product.getId(),
                 product.getType(),
@@ -40,6 +42,7 @@ public record ProductResponse(
                 product.getPriceUnit(),
                 product.isBookable(),
                 product.note(locale),
+                imageUrl,
                 product.includes(locale),
                 product.activeOptions().stream()
                         .map(option -> ProductOptionResponse.of(option, locale))

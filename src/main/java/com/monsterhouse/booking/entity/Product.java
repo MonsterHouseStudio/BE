@@ -49,6 +49,10 @@ public class Product extends BaseTimeEntity {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    /** 상품 대표 이미지 키(없으면 프론트가 기본 플레이스홀더로 대체). */
+    @Column(name = "image_key", length = 300)
+    private String imageKey;
+
     /** 가격 표기 단위. 통역은 /1일, /1시간 이 붙습니다. */
     @Enumerated(EnumType.STRING)
     @Column(name = "price_unit", nullable = false, length = 20)
@@ -83,7 +87,7 @@ public class Product extends BaseTimeEntity {
                     int durationMin, BigDecimal price, String currency,
                     boolean active, int sortOrder,
                     PriceUnit priceUnit, boolean bookable,
-                    String noteKo, String noteJa) {
+                    String noteKo, String noteJa, String imageKey) {
         this.type = type;
         this.nameKo = nameKo;
         this.nameJa = nameJa;
@@ -98,6 +102,7 @@ public class Product extends BaseTimeEntity {
         this.bookable = bookable;
         this.noteKo = noteKo;
         this.noteJa = noteJa;
+        this.imageKey = imageKey;
     }
 
     public String note(LocaleCode locale) {
@@ -179,7 +184,8 @@ public class Product extends BaseTimeEntity {
     }
     public void update(String nameKo, String nameJa, String descriptionKo, String descriptionJa,
                        int durationMin, BigDecimal price, int sortOrder,
-                       PriceUnit priceUnit, boolean bookable, String noteKo, String noteJa) {
+                       PriceUnit priceUnit, boolean bookable, String noteKo, String noteJa,
+                       String imageKey) {
         this.nameKo = nameKo;
         this.nameJa = nameJa;
         this.descriptionKo = descriptionKo;
@@ -191,6 +197,7 @@ public class Product extends BaseTimeEntity {
         this.bookable = bookable;
         this.noteKo = noteKo;
         this.noteJa = noteJa;
+        this.imageKey = imageKey;
     }
     public void activate() {
         this.active = true;

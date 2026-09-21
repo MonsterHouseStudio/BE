@@ -11,6 +11,7 @@ import com.monsterhouse.booking.entity.BookingStatus;
 import com.monsterhouse.common.enums.LocaleCode;
 import com.monsterhouse.common.exception.BusinessException;
 import com.monsterhouse.common.exception.ErrorCode;
+import com.monsterhouse.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,18 +28,27 @@ public class AdminProductService {
 
     private final ProductRepository productRepository;
     private final BookingRepository bookingRepository;
+    private final StorageService storageService;
 
     public List<AdminProductResponse> findAll() {
         return productRepository.findAll(
                         org.springframework.data.domain.Sort.by("sortOrder").ascending()
                                 .and(org.springframework.data.domain.Sort.by("id").ascending()))
                 .stream()
-                .map(AdminProductResponse::of)
+                .map(this::toResponse)
                 .toList();
     }
 
     public AdminProductResponse findOne(Long productId) {
-        return AdminProductResponse.of(getOrThrow(productId));
+        return toResponse(getOrThrow(productId));
+    }
+
+    private AdminProductResponse toResponse(Product product) {
+        return AdminProductResponse.of(product, storageService.url(product.getImageKey()));
+    }
+
+    private String emptyToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     @Transactional
@@ -58,6 +68,7 @@ public class AdminProductService {
                 .bookable(request.bookable())
                 .noteKo(request.noteKo())
                 .noteJa(request.noteJa())
+                .imageKey(emptyToNull(request.imageKey()))
                 .build();
 
         product.replaceIncludes(LocaleCode.KO, request.includesKo());
@@ -66,23 +77,31 @@ public class AdminProductService {
         productRepository.save(product);
         log.info("Product created. id={} name={}", product.getId(), product.getNameKo());
 
-        return AdminProductResponse.of(product);
+        return toResponse(product);
     }
 
     @Transactional
     public AdminProductResponse update(Long productId, ProductSaveRequest request) {
         Product product = getOrThrow(productId);
 
+        String previousKey = product.getImageKey();
+        String newKey = emptyToNull(request.imageKey());
+        boolean imageChanged = previousKey != null && !previousKey.equals(newKey);
+
         product.update(
                 request.nameKo(), request.nameJa(),
                 request.descriptionKo(), request.descriptionJa(),
                 request.durationMin(), request.price(), request.sortOrder(),
-                request.priceUnit(), request.bookable(), request.noteKo(), request.noteJa()
+                request.priceUnit(), request.bookable(), request.noteKo(), request.noteJa(),
+                newKey
         );
         product.replaceIncludes(LocaleCode.KO, request.includesKo());
         product.replaceIncludes(LocaleCode.JA, request.includesJa());
 
-        return AdminProductResponse.of(product);
+        if (imageChanged) {
+            storageService.delete(previousKey);
+        }
+        return toResponse(product);
     }
 
     @Transactional
@@ -93,7 +112,7 @@ public class AdminProductService {
         } else {
             product.deactivate();
         }
-        return AdminProductResponse.of(product);
+        return toResponse(product);
     }
 
     /**
@@ -145,14 +164,14 @@ public class AdminProductService {
         productRepository.flush();
 
         log.info("Product option added, productId={} name={}", productId, request.nameKo());
-        return AdminProductResponse.of(product);
+        return toResponse(product);
     }
     @Transactional
     public AdminProductResponse updateOption(Long productId, Long optionId, ProductOptionSaveRequest request){
         Product product = getOrThrow(productId);
         ProductOption option = product.findOption(optionId).orElseThrow(() -> new BusinessException(ErrorCode.INVALID_OPTION));
         option.update(request.nameKo(), request.nameJa(), request.price(), request.maxQuantity(), request.sortOrder(), request.active());
-        return AdminProductResponse.of(product);
+        return toResponse(product);
     }
     @Transactional
     public void deleteOption(Long productId, Long optionId){

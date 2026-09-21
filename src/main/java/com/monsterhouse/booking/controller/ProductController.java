@@ -7,6 +7,7 @@ import com.monsterhouse.common.enums.LocaleCode;
 import com.monsterhouse.common.exception.BusinessException;
 import com.monsterhouse.common.exception.ErrorCode;
 import com.monsterhouse.common.response.ApiResponse;
+import com.monsterhouse.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,20 +24,21 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class ProductController {
     private final ProductRepository productRepository;
+    private final StorageService storageService;
     @GetMapping
     public ApiResponse<List<ProductResponse>>list(){
         LocaleCode locale = currentLocale();
         List<ProductResponse> products = productRepository
                 .findAllByActiveTrueOrderBySortOrderAscIdAsc()
                 .stream()
-                .map(p -> ProductResponse.of(p, locale))
+                .map(p -> ProductResponse.of(p, locale, storageService.url(p.getImageKey())))
                 .toList();
         return ApiResponse.ok(products);
     }
     @GetMapping("/{productId}")
     public ApiResponse<ProductResponse> detail(@PathVariable Long productId){
         Product product = productRepository.findByIdAndActiveTrue(productId).orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-        return ApiResponse.ok(ProductResponse.of(product, currentLocale()));
+        return ApiResponse.ok(ProductResponse.of(product, currentLocale(), storageService.url(product.getImageKey())));
     }
     private LocaleCode currentLocale(){
         return LocaleCode.from(LocaleContextHolder.getLocale());

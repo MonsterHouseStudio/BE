@@ -26,10 +26,12 @@ public record AdminProductResponse(
         boolean bookable,
         String noteKo,
         String noteJa,
+        String imageKey,
+        String imageUrl,
         List<AdminProductOptionResponse> options,
         boolean translated
 ) {
-    public static AdminProductResponse of(Product product){
+    public static AdminProductResponse of(Product product, String imageUrl){
         String nameJa = product.getNameJa();
         boolean translated = nameJa != null && !nameJa.isBlank();
         return new AdminProductResponse(
@@ -51,6 +53,8 @@ public record AdminProductResponse(
                 product.isBookable(),
                 product.getNoteKo(),
                 product.getNoteJa(),
+                product.getImageKey(),
+                imageUrl,
                 product.getOptions().stream()
                         .sorted(java.util.Comparator.comparingInt(ProductOption::getSortOrder))
                         .map(AdminProductOptionResponse::of)
