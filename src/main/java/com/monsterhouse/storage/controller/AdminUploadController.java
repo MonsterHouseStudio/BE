@@ -26,7 +26,7 @@ public class AdminUploadController {
     // banner 는 배너 배경 이미지와, 영상 배너의 포스터(첫 프레임 대체 이미지)가 들어갑니다.
     // 빠뜨리면 영상 배너를 만들 때 포스터 업로드가 INVALID_INPUT 으로 막힙니다.
     private static final Set<String> ALLOWED_DIRECTORIES =
-            Set.of("gallery", "post", "product", "banner", "home-stat");
+            Set.of("gallery", "post", "product", "banner", "home-stat", "crew", "about-video", "about-intro");
     private final VideoUploadService videoUploadService;
     private final ImageUploadService imageUploadService;
 

@@ -1,6 +1,10 @@
 package com.monsterhouse.common.init;
 
 import com.monsterhouse.common.enums.LocaleCode;
+import com.monsterhouse.content.about.entity.AboutIntro;
+import com.monsterhouse.content.about.entity.Crew;
+import com.monsterhouse.content.about.repository.AboutIntroRepository;
+import com.monsterhouse.content.about.repository.CrewRepository;
 import com.monsterhouse.content.competition.entity.Competition;
 import com.monsterhouse.content.competition.entity.Country;
 import com.monsterhouse.content.competition.repository.CompetitionRepository;
@@ -40,6 +44,8 @@ public class DevContentInitializer implements ApplicationRunner {
     private final CompetitionRepository competitionRepository;
     private final PostRepository postRepository;
     private final HomeStatRepository homeStatRepository;
+    private final CrewRepository crewRepository;
+    private final AboutIntroRepository aboutIntroRepository;
 
     @Override
     @Transactional
@@ -47,6 +53,34 @@ public class DevContentInitializer implements ApplicationRunner {
         seedCompetitions();
         seedPosts();
         seedHomeStats();
+        seedAbout();
+    }
+
+    /** 로컬은 Flyway 를 쓰지 않으므로 소개 페이지(인트로·크루) 기본값을 여기서 시드합니다(운영은 V7). */
+    private void seedAbout() {
+        if (aboutIntroRepository.count() == 0) {
+            aboutIntroRepository.save(new AboutIntro(
+                    "우리는 무대 뒤를 찍습니다",
+                    "私たちはステージの裏側を撮ります",
+                    "MONSTER HOUSE는 보디빌딩 선수와 센터를 위한 영상·사진 미디어입니다. 결과가 아니라 과정을, 포즈가 아니라 사람을 기록합니다.",
+                    "MONSTER HOUSE はボディビル選手とジムのための映像・写真メディアです。結果ではなく過程を、ポーズではなく人を記録します。",
+                    null, null, null));
+        }
+        if (crewRepository.count() == 0) {
+            crewRepository.save(Crew.builder().nameKo("정재윤").nameJa("チョン・ジェユン")
+                    .roleKo("디렉터 · 촬영").roleJa("ディレクター・撮影")
+                    .bioKo("기록하는 사람. 무대보다 무대 뒤를 오래 본다.")
+                    .bioJa("記録する人。ステージよりも舞台裏を長く見つめる。")
+                    .active(true).sortOrder(0).build());
+            crewRepository.save(Crew.builder().nameKo("크루 A").nameJa("クルー A")
+                    .roleKo("편집 · 컬러").roleJa("編集・カラー")
+                    .bioKo("숫자보다 톤을 먼저 맞춘다.").bioJa("数値よりトーンを先に合わせる。")
+                    .active(true).sortOrder(1).build());
+            crewRepository.save(Crew.builder().nameKo("크루 B").nameJa("クルー B")
+                    .roleKo("통역 · 코디네이션").roleJa("通訳・コーディネート")
+                    .bioKo("한국과 일본 사이를 오간다.").bioJa("韓国と日本の間を行き来する。")
+                    .active(true).sortOrder(2).build());
+        }
     }
 
     /** 로컬은 Flyway 를 쓰지 않으므로 홈 통계 기본 4개를 여기서 시드합니다(운영은 V6 마이그레이션). */
