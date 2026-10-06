@@ -2,6 +2,7 @@ package com.monsterhouse.content.competition.controller;
 
 import com.monsterhouse.common.response.ApiResponse;
 import com.monsterhouse.content.competition.dto.AdminCompetitionResponse;
+import com.monsterhouse.content.competition.dto.CompetitionBulkRequest;
 import com.monsterhouse.content.competition.dto.CompetitionSaveRequest;
 import com.monsterhouse.content.competition.service.CompetitionService;
 import jakarta.validation.Valid;
@@ -33,6 +34,13 @@ public class AdminCompetitionController {
     public ApiResponse<AdminCompetitionResponse> create(
             @Valid @RequestBody CompetitionSaveRequest request) {
         return ApiResponse.ok(competitionService.create(request));
+    }
+
+    /** 엑셀 일괄 등록. 생성된 건수를 반환. */
+    @PostMapping("/bulk")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<Integer> bulkCreate(@Valid @RequestBody CompetitionBulkRequest request) {
+        return ApiResponse.ok(competitionService.bulkCreate(request.items()));
     }
 
     @PutMapping("/{id}")

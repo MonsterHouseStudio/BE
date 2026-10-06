@@ -61,6 +61,27 @@ public class CompetitionService {
         return AdminCompetitionResponse.of(competition);
     }
 
+    /** 엑셀 일괄 등록. 전체를 한 트랜잭션으로 저장하고 생성 건수를 반환합니다. */
+    @Transactional
+    public int bulkCreate(List<CompetitionSaveRequest> requests) {
+        int count = 0;
+        for (CompetitionSaveRequest request : requests) {
+            validateDateRange(request);
+            Competition competition = Competition.builder()
+                    .country(request.country())
+                    .startDate(request.startDate())
+                    .endDate(request.endDate())
+                    .link(request.link())
+                    .published(request.published())
+                    .build();
+            applyTranslations(competition, request);
+            competitionRepository.save(competition);
+            count++;
+        }
+        log.info("Competition bulk created. count={}", count);
+        return count;
+    }
+
     @Transactional
     public AdminCompetitionResponse update(Long id, CompetitionSaveRequest request) {
         validateDateRange(request);
