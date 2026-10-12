@@ -85,7 +85,11 @@ public class SecurityConfig {
                                 "/api/bookings",
                                 "/api/bookings/*/cancel",
                                 "/api/bookings/*/reschedule",
-                                "/api/inquiries").permitAll()
+                                "/api/inquiries",
+                                // 고객 회원 가입/로그인(공개). me/me-bookings 는 GET permitAll 이며
+                                // 컨트롤러가 회원 토큰을 직접 검증합니다.
+                                "/api/members/signup",
+                                "/api/members/login").permitAll()
 
                         // ★ /** 가 반드시 필요합니다.
                         //   "/actuator/health" 만 허용하면 정확히 그 경로만 열립니다.

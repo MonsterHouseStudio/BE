@@ -120,6 +120,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, Booking
 
     boolean existsByBookingCode(String bookingCode);
 
+    /** 마이페이지: 회원 이메일로 예약 내역 조회(최신순). */
+    @Query("""
+            select b from Booking b
+            join fetch b.product
+            where lower(b.email) = lower(:email)
+            order by b.startAt desc
+            """)
+    List<Booking> findByEmailWithProduct(@Param("email") String email);
+
     @Query("""
             select b from Booking b
             join fetch b.product
